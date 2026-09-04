@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Dasselbe Zeichen wie das Fokus-App-Icon: Haken im orangenen Kreis. -->
+  <circle cx="32" cy="32" r="30" fill="#E5701A"/>
+  <path d="M18 33 L28 43 L47 22" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
