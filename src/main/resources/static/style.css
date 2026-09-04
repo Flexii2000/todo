@@ -1,0 +1,57 @@
+/* Dieselbe Farbwelt wie die Notenuebersicht - die Seiten sollen sich wie
+   eine Familie anfuehlen. */
+:root { color-scheme: light;
+  --plane:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --muted:#898781; --grid:#e1e0d9; --ring:rgba(11,11,11,.10);
+  --accent:#e5701a; --danger:#c0392b; }
+@media (prefers-color-scheme: dark) { :root {
+  color-scheme: dark;
+  --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink-2:#c3c2b7;
+  --muted:#898781; --grid:#2c2c2a; --ring:rgba(255,255,255,.10);
+  --accent:#ff9f3c; --danger:#e06c5c; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--plane); color:var(--ink);
+  font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.wrap { max-width:72rem; margin:0 auto; padding:1.5rem clamp(1rem,2.5vw,2rem) 4rem; }
+header { display:flex; justify-content:space-between; align-items:baseline; gap:1rem;
+  flex-wrap:wrap; margin-bottom:1.25rem; }
+h1 { font-size:1.35rem; margin:0; letter-spacing:-.01em; }
+.stamp { color:var(--muted); font-size:.8125rem; }
+.banner { background:rgba(192,57,43,.12); color:var(--danger); border-radius:.5rem;
+  padding:.6rem .9rem; font-size:.875rem; margin:0 0 1rem; }
+
+/* Die Bereiche als Kacheln nebeneinander; auf dem Handy untereinander.
+   min-width:0 an der Kachel, sonst schiebt ein langer Text die ganze Spalte
+   breiter (dieselbe Falle wie im Finanz-Cockpit). */
+.board { display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(18rem, 1fr)); }
+.area { background:var(--surface); border:1px solid var(--ring); border-radius:.75rem;
+  padding:1rem 1.1rem; min-width:0; display:flex; flex-direction:column; gap:.6rem; }
+.area h2 { font-size:.8125rem; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--muted); margin:0; font-weight:600; display:flex; align-items:center; gap:.5rem; }
+.area h2 .count { color:var(--ink-2); font-weight:500; text-transform:none; letter-spacing:0; }
+.area h2 .tools { margin-left:auto; display:flex; gap:.25rem; }
+.area.new { border-style:dashed; justify-content:center; }
+
+ul.todos { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem; }
+ul.todos ul.todos { margin-left:1.6rem; margin-top:.15rem; }
+li.todo { display:flex; align-items:flex-start; gap:.55rem; padding:.3rem 0; min-width:0; }
+li.todo input[type=checkbox] { width:1.15rem; height:1.15rem; margin:.2rem 0 0; flex:none;
+  accent-color:var(--accent); }
+li.todo .title { flex:1; min-width:0; overflow-wrap:anywhere; }
+li.todo.done .title { text-decoration:line-through; color:var(--muted); }
+li.todo .until { color:var(--muted); font-size:.75rem; margin-left:.4rem; white-space:nowrap; }
+li.todo .x, .area .x, .sub { border:0; background:none; color:var(--muted); cursor:pointer;
+  font:inherit; font-size:.8125rem; padding:.1rem .35rem; border-radius:.35rem; flex:none; }
+li.todo .x:hover, .area .x:hover { color:var(--danger); background:var(--grid); }
+.sub:hover { color:var(--ink); background:var(--grid); }
+.sub { font-size:.75rem; }
+
+form.add { display:flex; gap:.5rem; margin-top:.3rem; }
+form.add input { flex:1; min-width:0; font:inherit; font-size:.9375rem; padding:.45rem .6rem;
+  border:1px solid var(--ring); border-radius:.5rem; background:var(--plane); color:var(--ink); }
+form.add button { font:inherit; font-size:.875rem; padding:.45rem .8rem; border:0;
+  border-radius:.5rem; background:var(--accent); color:#fff; cursor:pointer; }
+form.add.sub-add { margin-left:1.6rem; }
+.archive { color:var(--muted); font-size:.8125rem; margin-top:1.25rem; }
+.archive button { border:0; background:none; color:var(--muted); text-decoration:underline;
+  cursor:pointer; font:inherit; }

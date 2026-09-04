@@ -1,0 +1,33 @@
+# systemd-Unit fuer Todo (fherrmann.com/todo).
+#
+# Installiert deploy/setup-todo.sh. Von Hand:
+#   sudo cp deploy/todo.service /etc/systemd/system/todo.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now todo
+#
+# Die Token stehen in /etc/todo.env (siehe EnvironmentFile), lesbar nur fuer
+# root und den Dienstnutzer - nirgends im Repo.
+
+[Unit]
+Description=Todo (fherrmann.com/todo)
+After=network.target
+
+[Service]
+User=todo
+Group=todo
+WorkingDirectory=/opt/todo
+EnvironmentFile=/etc/todo.env
+# Absoluter Pfad: das JDK liegt unter /opt/java und ist nicht im PATH eines
+# systemd-Dienstes (wie bei food.service).
+ExecStart=/opt/java/jdk-25.0.1+8/bin/java -jar /opt/todo/app.jar
+Restart=on-failure
+RestartSec=5
+
+# Der Dienst braucht nichts ausser seinem Datenverzeichnis. Anders als beim
+# Kalorienzaehler startet er keine Claude-Session - NoNewPrivileges darf also an.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/todo/data
+
+[Install]
+WantedBy=multi-user.target
