@@ -105,6 +105,10 @@
     title.style.cursor = "pointer";
     title.title = "Fälligkeit und Erinnerungen";
     title.addEventListener("click", () => toggleDetails(li, todo));
+    // Die Knoepfe in einer eigenen Gruppe: bei langen Texten rutschen sie
+    // unter den Titel, statt ihn in eine schmale Spalte zu quetschen.
+    const actions = el("span", "actions");
+    li.append(actions);
     if (!isChild && !todo.doneAt) {
       const sub = el("button", "sub", "+ Unteraufgabe");
       sub.type = "button";
@@ -118,7 +122,7 @@
         li.after(form);
         form.querySelector("input").focus();
       });
-      li.append(sub);
+      actions.append(sub);
     }
     const x = el("button", "x del", "Löschen");
     x.type = "button";
@@ -126,7 +130,7 @@
     x.addEventListener("click", () => {
       if (confirm("„" + todo.title + "“ endgültig löschen?")) run("DELETE", "todos/" + todo.id);
     });
-    li.append(x);
+    actions.append(x);
     return li;
   }
 
