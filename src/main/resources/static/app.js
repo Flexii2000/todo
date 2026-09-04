@@ -41,6 +41,21 @@
     return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
   }
 
+  // Die Faelligkeit in der Zeile: eine Woche um heute herum in Tagen, weiter
+  // weg als Datum. "in 5 Tagen" sagt mehr als der 9., bei "in 23 Tagen"
+  // rechnet man doch wieder ins Datum um. Wie in der App.
+  function dueLabel(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    const [ty, tm, td] = today().split("-").map(Number);
+    const days = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000);
+    if (days === 0) return "heute";
+    if (days === 1) return "morgen";
+    if (days === -1) return "seit gestern";
+    if (days >= 2 && days <= 7) return "in " + days + " Tagen";
+    if (days <= -2 && days >= -7) return "seit " + (-days) + " Tagen";
+    return (days < 0 ? "seit " : "bis ") + fmtDate(iso);
+  }
+
   function fmtDateTime(iso) {
     const d = new Date(iso);
     return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " "
@@ -94,7 +109,7 @@
     const title = el("span", "title", todo.title);
     if (todo.dueAt) {
       const due = el("span", "due" + (!todo.doneAt && todo.dueAt < today() ? " overdue" : ""),
-        "bis " + fmtDate(todo.dueAt));
+        dueLabel(todo.dueAt));
       title.append(due);
     }
     if (todo.reminders && todo.reminders.length) {
@@ -109,21 +124,6 @@
     // unter den Titel, statt ihn in eine schmale Spalte zu quetschen.
     const actions = el("span", "actions");
     li.append(actions);
-    if (!isChild && !todo.doneAt) {
-      const sub = el("button", "sub", "+ Unteraufgabe");
-      sub.type = "button";
-      sub.addEventListener("click", () => {
-        if (li.nextSibling && li.nextSibling.classList && li.nextSibling.classList.contains("sub-add")) {
-          li.nextSibling.remove();
-          return;
-        }
-        const form = addForm("Unteraufgabe", (text) =>
-          run("POST", "todos", { areaId: area.id, parentId: todo.id, title: text }), "sub-add");
-        li.after(form);
-        form.querySelector("input").focus();
-      });
-      actions.append(sub);
-    }
     const x = el("button", "x del", "Löschen");
     x.type = "button";
     x.title = "Wirklich löschen, nicht nur ausblenden";
@@ -131,6 +131,27 @@
       if (confirm("„" + todo.title + "“ endgültig löschen?")) run("DELETE", "todos/" + todo.id);
     });
     actions.append(x);
+    return li;
+  }
+
+  // Die leere Zeile unter den Unteraufgaben: gestrichelter Kreis und ein
+  // Feld, das man einfach befuellt. Vorher war das ein Knopf "+ Unteraufgabe"
+  // in der Zeile - den fand niemand.
+  function ghostItem(area, todo) {
+    const li = el("li", "todo ghost");
+    const form = el("form", "ghost");
+    const input = el("input");
+    input.placeholder = "Unteraufgabe";
+    input.setAttribute("aria-label", "Unteraufgabe zu „" + todo.title + "“");
+    form.append(el("span", "ring"), input);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      run("POST", "todos", { areaId: area.id, parentId: todo.id, title: text });
+    });
+    li.append(form);
     return li;
   }
 
@@ -208,9 +229,11 @@
     const list = el("ul", "todos");
     for (const todo of area.todos) {
       list.append(todoItem(area, todo, false));
-      if (todo.children.length) {
+      // Unteraufgaben, darunter bei offenen Aufgaben die leere Zeile.
+      if (todo.children.length || !todo.doneAt) {
         const sub = el("ul", "todos");
         for (const child of todo.children) sub.append(todoItem(area, child, true));
+        if (!todo.doneAt) sub.append(ghostItem(area, todo));
         list.append(sub);
       }
     }

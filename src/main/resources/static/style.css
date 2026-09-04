@@ -58,18 +58,24 @@ li.todo .del { font-size:.75rem; }
 .details ul.reminders { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem; }
 .details ul.reminders li { display:flex; align-items:center; gap:.4rem; }
 .details ul.reminders li.sent { color:var(--muted); }
-li.todo .x, .area .x, .sub { border:0; background:none; color:var(--muted); cursor:pointer;
+li.todo .x, .area .x { border:0; background:none; color:var(--muted); cursor:pointer;
   font:inherit; font-size:.8125rem; padding:.1rem .35rem; border-radius:.35rem; flex:none; }
 li.todo .x:hover, .area .x:hover { color:var(--danger); background:var(--grid); }
-.sub:hover { color:var(--ink); background:var(--grid); }
-.sub { font-size:.75rem; }
 
 form.add { display:flex; gap:.5rem; margin-top:.3rem; }
 form.add input { flex:1; min-width:0; font:inherit; font-size:.9375rem; padding:.45rem .6rem;
   border:1px solid var(--ring); border-radius:.5rem; background:var(--plane); color:var(--ink); }
 form.add button { font:inherit; font-size:.875rem; padding:.45rem .8rem; border:0;
   border-radius:.5rem; background:var(--accent); color:#fff; cursor:pointer; }
-form.add.sub-add { margin-left:1.6rem; }
 .archive { color:var(--muted); font-size:.8125rem; margin-top:1.25rem; }
 .archive button { border:0; background:none; color:var(--muted); text-decoration:underline;
   cursor:pointer; font:inherit; }
+
+/* Die leere Zeile unter den Unteraufgaben. */
+li.todo.ghost form { display:flex; align-items:center; gap:.5rem; width:100%; }
+li.todo.ghost .ring { flex:none; width:.95rem; height:.95rem; border:1.5px dashed var(--muted);
+  border-radius:50%; opacity:.55; }
+li.todo.ghost input { flex:1; min-width:0; border:0; background:none; font:inherit;
+  font-size:.9375rem; color:var(--ink); padding:.1rem 0; }
+li.todo.ghost input::placeholder { color:var(--muted); opacity:.75; }
+li.todo.ghost input:focus { outline:none; }
