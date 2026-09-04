@@ -39,7 +39,24 @@ li.todo input[type=checkbox] { width:1.15rem; height:1.15rem; margin:.2rem 0 0; 
   accent-color:var(--accent); }
 li.todo .title { flex:1; min-width:0; overflow-wrap:anywhere; }
 li.todo.done .title { text-decoration:line-through; color:var(--muted); }
-li.todo .until { color:var(--muted); font-size:.75rem; margin-left:.4rem; white-space:nowrap; }
+li.todo .due { color:var(--muted); font-size:.75rem; margin-left:.45rem; white-space:nowrap; }
+li.todo .due.overdue { color:var(--danger); font-weight:600; }
+li.todo .bell { color:var(--muted); font-size:.75rem; margin-left:.45rem; white-space:nowrap; }
+li.todo .del { font-size:.75rem; }
+/* Das Detailfeld unter einer Aufgabe */
+.details { margin:.1rem 0 .4rem 1.75rem; padding:.55rem .7rem; border:1px solid var(--ring);
+  border-radius:.5rem; background:var(--plane); display:flex; flex-direction:column; gap:.4rem;
+  font-size:.8125rem; }
+.details .row { display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; }
+.details .lbl { color:var(--muted); min-width:4.5rem; }
+.details input { font:inherit; padding:.25rem .4rem; border:1px solid var(--ring); border-radius:.35rem;
+  background:var(--surface); color:var(--ink); }
+.details .mini { font:inherit; font-size:.75rem; padding:.25rem .55rem; border:0; border-radius:.35rem;
+  background:var(--accent); color:#fff; cursor:pointer; }
+.details .mini.quiet { background:var(--grid); color:var(--ink-2); }
+.details ul.reminders { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem; }
+.details ul.reminders li { display:flex; align-items:center; gap:.4rem; }
+.details ul.reminders li.sent { color:var(--muted); }
 li.todo .x, .area .x, .sub { border:0; background:none; color:var(--muted); cursor:pointer;
   font:inherit; font-size:.8125rem; padding:.1rem .35rem; border-radius:.35rem; flex:none; }
 li.todo .x:hover, .area .x:hover { color:var(--danger); background:var(--grid); }

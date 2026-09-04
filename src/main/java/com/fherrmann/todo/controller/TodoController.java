@@ -1,6 +1,9 @@
 package com.fherrmann.todo.controller;
 
 import com.fherrmann.todo.dto.AreaRequest;
+import com.fherrmann.todo.dto.DeviceRegistration;
+import com.fherrmann.todo.dto.ReminderRequest;
+import com.fherrmann.todo.push.DeviceTokens;
 import com.fherrmann.todo.dto.Board;
 import com.fherrmann.todo.dto.TodoRequest;
 import com.fherrmann.todo.service.TodoService;
@@ -22,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class TodoController {
 
     private final TodoService service;
+    private final DeviceTokens devices;
 
-    public TodoController(TodoService service) {
+    public TodoController(TodoService service, DeviceTokens devices) {
         this.service = service;
+        this.devices = devices;
     }
 
     /** @param all auch erledigte Aufgaben, die aelter als die Sichtfrist sind */
@@ -53,9 +58,30 @@ public class TodoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createTodo(request));
     }
 
+    /** Text und Faelligkeit. Ohne {@code dueAt} im Rumpf gibt es keine mehr. */
     @PutMapping("/todos/{id}")
-    public Board renameTodo(@PathVariable String id, @RequestBody TodoRequest request) {
-        return service.renameTodo(id, request);
+    public Board updateTodo(@PathVariable String id, @RequestBody TodoRequest request) {
+        return service.update(id, request);
+    }
+
+    @PostMapping("/todos/{id}/reminders")
+    public ResponseEntity<Board> addReminder(@PathVariable String id, @RequestBody ReminderRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.addReminder(id, request));
+    }
+
+    @DeleteMapping("/todos/{id}/reminders/{reminderId}")
+    public Board deleteReminder(@PathVariable String id, @PathVariable String reminderId) {
+        return service.deleteReminder(id, reminderId);
+    }
+
+    /** Die Fokus-App meldet ihre Push-Kennung an - bei jedem Start, iOS tauscht sie gelegentlich. */
+    @PostMapping("/devices")
+    public ResponseEntity<Void> registerDevice(@RequestBody DeviceRegistration request) {
+        if (request == null || request.token() == null || request.token().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        devices.add(request.token().trim());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/todos/{id}/done")

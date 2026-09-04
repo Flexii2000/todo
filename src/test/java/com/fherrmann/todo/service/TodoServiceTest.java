@@ -2,6 +2,7 @@ package com.fherrmann.todo.service;
 
 import com.fherrmann.todo.dto.AreaRequest;
 import com.fherrmann.todo.dto.Board;
+import com.fherrmann.todo.dto.ReminderRequest;
 import com.fherrmann.todo.dto.TodoRequest;
 import com.fherrmann.todo.model.Area;
 import com.fherrmann.todo.model.Todo;
@@ -13,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
@@ -57,7 +59,7 @@ class TodoServiceTest {
 
     @Test
     void anlegenAbhakenUndDerHakenBleibtDreiTageSichtbar() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "Rasen mähen"));
+        Board board = service.createTodo(new TodoRequest("privat", null, "Rasen mähen", null));
         assertEquals(1, board.areas().get(0).openCount());
         String id = firstTodoId(board, 0);
 
@@ -85,7 +87,7 @@ class TodoServiceTest {
 
     @Test
     void hakenZurueckAuchNachDemVerschwinden() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "Steuer"));
+        Board board = service.createTodo(new TodoRequest("privat", null, "Steuer", null));
         String id = firstTodoId(board, 0);
         service.done(id);
         TodoService later = new TodoService(mockRepo(), Clock.fixed(NOW.plus(Duration.ofDays(10)), BERLIN), 3);
@@ -96,10 +98,10 @@ class TodoServiceTest {
 
     @Test
     void unteraufgabenHaengenAnIhrerAufgabe() {
-        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit"));
+        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit", null));
         String parent = firstTodoId(board, 1);
-        board = service.createTodo(new TodoRequest("uni", parent, "Gliederung"));
-        board = service.createTodo(new TodoRequest("uni", parent, "Quellen"));
+        board = service.createTodo(new TodoRequest("uni", parent, "Gliederung", null));
+        board = service.createTodo(new TodoRequest("uni", parent, "Quellen", null));
         Board.TodoView top = board.areas().get(1).todos().get(0);
         assertEquals(2, top.children().size());
         assertEquals(3, board.areas().get(1).openCount());
@@ -107,10 +109,10 @@ class TodoServiceTest {
         // Keine Unteraufgabe der Unteraufgabe.
         String child = top.children().get(0).id();
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("uni", child, "zu tief")));
+                () -> service.createTodo(new TodoRequest("uni", child, "zu tief", null)));
         // Und nicht in einem anderen Bereich.
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("privat", parent, "falscher Bereich")));
+                () -> service.createTodo(new TodoRequest("privat", parent, "falscher Bereich", null)));
 
         // Loeschen nimmt die Kinder mit.
         board = service.deleteTodo(parent);
@@ -120,9 +122,9 @@ class TodoServiceTest {
 
     @Test
     void erledigteAufgabeNimmtIhreUnteraufgabenMitVomBrett() {
-        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit"));
+        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit", null));
         String parent = firstTodoId(board, 1);
-        service.createTodo(new TodoRequest("uni", parent, "Gliederung"));
+        service.createTodo(new TodoRequest("uni", parent, "Gliederung", null));
         service.done(parent);
         TodoService later = new TodoService(mockRepo(), Clock.fixed(NOW.plus(Duration.ofDays(4)), BERLIN), 3);
         Board after = later.board(false);
@@ -137,8 +139,8 @@ class TodoServiceTest {
 
     @Test
     void offeneZuerstDannErledigte() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "A"));
-        board = service.createTodo(new TodoRequest("privat", null, "B"));
+        Board board = service.createTodo(new TodoRequest("privat", null, "A", null));
+        board = service.createTodo(new TodoRequest("privat", null, "B", null));
         String a = board.areas().get(0).todos().get(0).id();
         board = service.done(a);
         List<Board.TodoView> todos = board.areas().get(0).todos();
@@ -155,7 +157,7 @@ class TodoServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.createArea(new AreaRequest(" ")));
 
         String id = board.areas().get(2).id();
-        service.createTodo(new TodoRequest(id, null, "nginx"));
+        service.createTodo(new TodoRequest(id, null, "nginx", null));
         board = service.renameArea(id, new AreaRequest("Heimserver"));
         assertEquals("Heimserver", board.areas().get(2).name());
         board = service.deleteArea(id);
@@ -164,10 +166,37 @@ class TodoServiceTest {
     }
 
     @Test
+    void faelligkeitSetzenUndWiederNehmen() {
+        Board board = service.createTodo(new TodoRequest("privat", null, "Steuer", LocalDate.of(2026, 9, 30)));
+        String id = firstTodoId(board, 0);
+        assertEquals(LocalDate.of(2026, 9, 30), board.areas().get(0).todos().get(0).dueAt());
+        board = service.update(id, new TodoRequest(null, null, "Steuererklärung", null));
+        Board.TodoView view = board.areas().get(0).todos().get(0);
+        assertEquals("Steuererklärung", view.title());
+        assertNull(view.dueAt(), "ohne dueAt im Request gibt es keine Faelligkeit mehr");
+    }
+
+    @Test
+    void erinnerungenBeliebigVieleNurInDerZukunft() {
+        Board board = service.createTodo(new TodoRequest("privat", null, "Anrufen", null));
+        String id = firstTodoId(board, 0);
+        board = service.addReminder(id, new ReminderRequest(NOW.plus(Duration.ofHours(2))));
+        board = service.addReminder(id, new ReminderRequest(NOW.plus(Duration.ofHours(1))));
+        List<Board.ReminderView> reminders = board.areas().get(0).todos().get(0).reminders();
+        assertEquals(2, reminders.size());
+        assertEquals(NOW.plus(Duration.ofHours(1)), reminders.get(0).at(), "sortiert, die naechste zuerst");
+        assertThrows(ResponseStatusException.class,
+                () -> service.addReminder(id, new ReminderRequest(NOW.minus(Duration.ofMinutes(1)))));
+        board = service.deleteReminder(id, reminders.get(0).id());
+        assertEquals(1, board.areas().get(0).todos().get(0).reminders().size());
+        assertThrows(ResponseStatusException.class, () -> service.deleteReminder(id, "gibtsnicht"));
+    }
+
+    @Test
     void leererTextWirdAbgelehnt() {
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("privat", null, "   ")));
+                () -> service.createTodo(new TodoRequest("privat", null, "   ", null)));
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("gibtsnicht", null, "x")));
+                () -> service.createTodo(new TodoRequest("gibtsnicht", null, "x", null)));
     }
 }

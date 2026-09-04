@@ -3,7 +3,9 @@ package com.fherrmann.todo.service;
 import com.fherrmann.todo.dto.AreaRequest;
 import com.fherrmann.todo.dto.Board;
 import com.fherrmann.todo.dto.TodoRequest;
+import com.fherrmann.todo.dto.ReminderRequest;
 import com.fherrmann.todo.model.Area;
+import com.fherrmann.todo.model.Reminder;
 import com.fherrmann.todo.model.Todo;
 import com.fherrmann.todo.model.TodoData;
 import com.fherrmann.todo.repository.TodoRepository;
@@ -117,7 +119,13 @@ public class TodoService {
 
     private Board.TodoView view(Todo todo, List<Board.TodoView> children) {
         return new Board.TodoView(todo.id(), todo.title(), todo.createdAt(), todo.doneAt(),
-                todo.isDone() ? todo.doneAt().plus(doneVisible) : null, children);
+                todo.isDone() ? todo.doneAt().plus(doneVisible) : null,
+                todo.dueAt(),
+                todo.reminders().stream()
+                        .sorted(Comparator.comparing(Reminder::at))
+                        .map(r -> new Board.ReminderView(r.id(), r.at(), r.sentAt()))
+                        .toList(),
+                children);
     }
 
     // MARK: - Bereiche
@@ -178,16 +186,49 @@ public class TodoService {
         }
         List<Todo> todos = new ArrayList<>(data.todos());
         todos.add(new Todo(TodoRepository.newId(), request.areaId(), request.parentId(),
-                title, Instant.now(clock), null));
+                title, Instant.now(clock), null, request.dueAt(), List.of()));
         return save(new TodoData(data.areas(), todos));
     }
 
-    public Board renameTodo(String id, TodoRequest request) {
+    /** Text und Faelligkeit aendern. Keine Faelligkeit im Request heisst: keine mehr. */
+    public Board update(String id, TodoRequest request) {
         String title = cleanTitle(request);
         TodoData data = repository.load();
         findTodo(data, id);
         return save(new TodoData(data.areas(), data.todos().stream()
-                .map(t -> t.id().equals(id) ? t.withTitle(title) : t).toList()));
+                .map(t -> t.id().equals(id) ? t.withTitleAndDueAt(title, request.dueAt()) : t).toList()));
+    }
+
+    // MARK: - Erinnerungen
+
+    public Board addReminder(String id, ReminderRequest request) {
+        if (request == null || request.at() == null) {
+            throw badRequest("Wann soll erinnert werden?");
+        }
+        if (request.at().isBefore(Instant.now(clock))) {
+            throw badRequest("Der Zeitpunkt liegt in der Vergangenheit.");
+        }
+        TodoData data = repository.load();
+        Todo todo = findTodo(data, id);
+        List<Reminder> reminders = new ArrayList<>(todo.reminders());
+        reminders.add(new Reminder(TodoRepository.newId(), request.at(), null));
+        return save(replace(data, todo.withReminders(reminders)));
+    }
+
+    public Board deleteReminder(String id, String reminderId) {
+        TodoData data = repository.load();
+        Todo todo = findTodo(data, id);
+        List<Reminder> reminders = todo.reminders().stream()
+                .filter(r -> !r.id().equals(reminderId)).toList();
+        if (reminders.size() == todo.reminders().size()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Erinnerung nicht gefunden.");
+        }
+        return save(replace(data, todo.withReminders(reminders)));
+    }
+
+    private static TodoData replace(TodoData data, Todo updated) {
+        return new TodoData(data.areas(), data.todos().stream()
+                .map(t -> t.id().equals(updated.id()) ? updated : t).toList());
     }
 
     /** Abhaken. Noch einmal abhaken aendert nichts - der Zeitpunkt bleibt der erste. */

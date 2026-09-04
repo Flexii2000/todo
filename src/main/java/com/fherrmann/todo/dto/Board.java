@@ -1,6 +1,7 @@
 package com.fherrmann.todo.dto;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -25,6 +26,10 @@ public record Board(List<AreaView> areas, boolean includesHidden, int hiddenDone
      *                     Damit kann die Oberflaeche „verschwindet morgen" sagen.
      */
     public record TodoView(String id, String title, Instant createdAt, Instant doneAt,
-                           Instant visibleUntil, List<TodoView> children) {
+                           Instant visibleUntil, LocalDate dueAt, List<ReminderView> reminders,
+                           List<TodoView> children) {
+    }
+
+    public record ReminderView(String id, Instant at, Instant sentAt) {
     }
 }

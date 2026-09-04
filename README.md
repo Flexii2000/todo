@@ -17,6 +17,23 @@ Seiten im selben Tab.
   und der Haken lässt sich jederzeit wieder lösen — auch danach.
 - Offene Aufgaben oben (älteste zuerst), erledigte darunter (zuletzt
   erledigte zuerst).
+- **Fälligkeit** je Aufgabe — eine Anzeige, überfällig heißt rot, mehr nicht.
+- **Erinnerungen**, beliebig viele je Aufgabe: Zeitpunkte, zu denen der Dienst
+  eine Push-Nachricht an die Fokus-App schickt („Erinnerung: Hausarbeit —
+  Uni · fällig am 10.09."). Nur solange die Aufgabe offen ist; nur in der
+  Zukunft anlegbar; eine Erinnerung, die der Dienst um mehr als eine Stunde
+  verpasst hat (Ausfall), gilt als verpasst und geht nicht mehr raus.
+
+## Erinnerungen: warum der Dienst schickt und nicht die App
+
+Eine Erinnerung, die im Browser angelegt wurde, muss auch kommen, wenn die
+App seit Tagen zu ist. Deshalb sieht der Dienst jede Minute nach
+(`ReminderScheduler`, `todo.push.check-interval`) und schickt fällige selbst
+über APNs — derselbe Weg wie beim Kalorienzähler (`push/ApnsClient`, ohne
+Bibliothek, DER→JOSE im Test festgehalten). Die Fokus-App meldet ihre
+Push-Kennung mit `POST /api/devices` an; abgelehnte Kennungen fliegen raus.
+Ohne Schlüssel in `/etc/todo.env` bleibt alles stumm, sonst läuft der Dienst
+unverändert.
 
 ## REST-API
 
@@ -30,7 +47,10 @@ Antwort ist das ganze Brett** (`Board`).
 | PUT | `/api/areas/{id}` | `{name}` |
 | DELETE | `/api/areas/{id}` | samt Aufgaben |
 | POST | `/api/todos` | `{areaId, parentId?, title}` → 201 |
-| PUT | `/api/todos/{id}` | `{title}` |
+| PUT | `/api/todos/{id}` | `{title, dueAt?}` — fehlt `dueAt`, gibt es keine Fälligkeit mehr |
+| POST | `/api/todos/{id}/reminders` | `{at}` (Zeitpunkt mit Zone, nur Zukunft) → 201 |
+| DELETE | `/api/todos/{id}/reminders/{rid}` | Erinnerung entfernen |
+| POST | `/api/devices` | `{token}` — Push-Kennung der Fokus-App |
 | POST | `/api/todos/{id}/done` | abhaken (idempotent, der erste Zeitpunkt bleibt) |
 | DELETE | `/api/todos/{id}/done` | Haken zurück |
 | DELETE | `/api/todos/{id}` | wirklich löschen, samt Unteraufgaben |
@@ -38,7 +58,8 @@ Antwort ist das ganze Brett** (`Board`).
 ```
 Board     areas[], includesHidden, hiddenDoneCount, now
 AreaView  id, name, position, openCount, hiddenDoneCount, todos[]
-TodoView  id, title, createdAt, doneAt | null, visibleUntil | null, children[]
+TodoView  id, title, createdAt, doneAt | null, visibleUntil | null,
+          dueAt | null, reminders[] {id, at, sentAt | null}, children[]
 ```
 
 Fehler kommen als Klartext (`Eine Aufgabe braucht einen Text.`).

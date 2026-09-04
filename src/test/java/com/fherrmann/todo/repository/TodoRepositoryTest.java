@@ -36,8 +36,9 @@ class TodoRepositoryTest {
         TodoData data = repository.load();
         String area = data.areas().get(0).id();
         TodoData mitAufgabe = new TodoData(data.areas(), List.of(
-                new Todo("t1", area, null, "Rasen", Instant.now(CLOCK), null),
-                new Todo("t2", area, "t1", "Kanten", Instant.now(CLOCK), Instant.now(CLOCK))));
+                new Todo("t1", area, null, "Rasen", Instant.now(CLOCK), null, null, List.of()),
+                new Todo("t2", area, "t1", "Kanten", Instant.now(CLOCK), Instant.now(CLOCK), null,
+                        List.of(new com.fherrmann.todo.model.Reminder("r1", Instant.now(CLOCK), null)))));
         repository.save(mitAufgabe);
         assertEquals(mitAufgabe, repository.load());
     }

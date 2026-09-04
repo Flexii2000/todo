@@ -72,6 +72,21 @@ sudo test -r "$PRIVATE_MODE_CONF" || fail "$PRIVATE_MODE_CONF nicht lesbar - lae
 TOKEN="$(sudo grep -oE '"[0-9a-fA-F]{24,}"' "$PRIVATE_MODE_CONF" | head -1 | tr -d '"')"
 [[ -n "$TOKEN" ]] || fail "Kein Token in $PRIVATE_MODE_CONF gefunden."
 printf 'FH_PRIVATE_TOKEN=%s\n' "$TOKEN" | sudo tee /etc/todo.env >/dev/null
+# Erinnerungen per Push: eigene Kopie des APNs-Schluessels fuer den User todo
+# (der Kalorienzaehler laeuft als food), Schluessel-ID und Team aus dessen
+# Umgebung, das Topic ist die Bundle-ID der Fokus-App.
+APNS_KEY="/etc/apns-todo.p8"
+if sudo test -f /etc/apns-cockpit.p8; then
+    sudo test -f "$APNS_KEY" || sudo install -o root -g "$SERVICE_USER" -m 640 /etc/apns-cockpit.p8 "$APNS_KEY"
+    {
+        echo "APNS_KEY_FILE=$APNS_KEY"
+        sudo grep -hE '^APNS_(KEY_ID|TEAM_ID|HOST)=' /etc/food.env
+        echo "APNS_TOPIC=com.fherrmann.fokus"
+    } | sudo tee -a /etc/todo.env >/dev/null
+    echo "    Push eingerichtet ($APNS_KEY, Topic com.fherrmann.fokus)."
+else
+    echo "    HINWEIS: /etc/apns-cockpit.p8 fehlt - Erinnerungen bleiben stumm."
+fi
 sudo chown root:"$SERVICE_USER" /etc/todo.env
 sudo chmod 640 /etc/todo.env
 echo "    /etc/todo.env geschrieben (Token ${TOKEN:0:6}…)."

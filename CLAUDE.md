@@ -22,6 +22,10 @@ Tab in der iOS-App Fokus (`~/Server-Projects/cockpit-ios`).
   Schicksal ihrer Aufgabe: ist die vom Brett, ist sie es auch.
 - **Jede Antwort ist das ganze Brett.** Keine Teilantworten, die ein Client
   zusammensetzen müsste.
+- **Erinnerungen schickt der Dienst**, nicht die App (`ReminderScheduler`,
+  jede Minute). Eine erledigte Aufgabe erinnert an nichts mehr; eine um mehr
+  als eine Stunde verpasste Erinnerung ist verpasst. Beides wird als
+  „geschickt" abgehakt, sonst bliebe sie ewig fällig.
 
 ## Bauen und prüfen
 

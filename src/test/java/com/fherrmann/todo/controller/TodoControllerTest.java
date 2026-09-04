@@ -2,6 +2,7 @@ package com.fherrmann.todo.controller;
 
 import com.fherrmann.todo.dto.Board;
 import com.fherrmann.todo.security.SecurityConfig;
+import com.fherrmann.todo.push.DeviceTokens;
 import com.fherrmann.todo.service.TodoService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,9 @@ class TodoControllerTest {
     @MockitoBean
     private TodoService service;
 
+    @MockitoBean
+    private DeviceTokens devices;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -55,8 +59,8 @@ class TodoControllerTest {
 
     private static Board board() {
         Instant now = Instant.parse("2026-09-04T12:00:00Z");
-        Board.TodoView child = new Board.TodoView("c1", "Gliederung", now, null, null, List.of());
-        Board.TodoView top = new Board.TodoView("t1", "Hausarbeit", now, null, null, List.of(child));
+        Board.TodoView child = new Board.TodoView("c1", "Gliederung", now, null, null, null, List.of(), List.of());
+        Board.TodoView top = new Board.TodoView("t1", "Hausarbeit", now, null, null, null, List.of(), List.of(child));
         return new Board(List.of(new Board.AreaView("uni", "Uni", 0, 2, 1, List.of(top))), false, 1, now);
     }
 
