@@ -5,7 +5,6 @@
 
   const boardEl = document.getElementById("board");
   const banner = document.getElementById("banner");
-  const stamp = document.getElementById("stamp");
   const archive = document.getElementById("archive");
   let showAll = false;
 
@@ -147,7 +146,6 @@
     fresh.append(addForm("Neuer Bereich", (name) => run("POST", "areas", { name })));
     boardEl.append(fresh);
 
-    stamp.textContent = "Erledigtes bleibt 3 Tage sichtbar";
     archive.hidden = !(board.hiddenDoneCount > 0 || showAll);
     archive.replaceChildren();
     if (!archive.hidden) {
