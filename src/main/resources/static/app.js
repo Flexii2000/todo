@@ -136,12 +136,13 @@
 
   // Die leere Zeile unter den Unteraufgaben: gestrichelter Kreis und ein
   // Feld, das man einfach befuellt. Vorher war das ein Knopf "+ Unteraufgabe"
-  // in der Zeile - den fand niemand.
+  // in der Zeile - den fand niemand. Kein Platzhaltertext: der Kreis allein
+  // sagt genug, der Text war Felix zu viel (2026-09-22); die Beschriftung
+  // fuer Screenreader bleibt.
   function ghostItem(area, todo) {
     const li = el("li", "todo ghost");
     const form = el("form", "ghost");
     const input = el("input");
-    input.placeholder = "Unteraufgabe";
     input.setAttribute("aria-label", "Unteraufgabe zu „" + todo.title + "“");
     form.append(el("span", "ring"), input);
     form.addEventListener("submit", (e) => {
