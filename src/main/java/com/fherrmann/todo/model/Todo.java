@@ -10,6 +10,9 @@ import java.util.List;
  * @param parentId gesetzt bei einer Unteraufgabe - genau eine Ebene tief.
  *                 Eine Unteraufgabe einer Unteraufgabe gibt es nicht; wer das
  *                 braucht, hat eher einen neuen Bereich.
+ * @param link     eine Adresse zur Aufgabe (nur http/https), oder {@code null} -
+ *                 etwa die Wunsch-Seite, von der eine automatisch angelegte
+ *                 Aufgabe stammt. Gesetzt wird er nur beim Anlegen.
  * @param dueAt    Faelligkeit, oder {@code null}. Nur eine Anzeige - ueberfaellig
  *                 heisst rot, nicht mehr.
  * @param reminders beliebig viele Zeitpunkte, zu denen der Dienst eine Push-
@@ -24,13 +27,15 @@ public record Todo(
         String areaId,
         String parentId,
         String title,
+        String link,
         Instant createdAt,
         Instant doneAt,
         LocalDate dueAt,
         List<Reminder> reminders) {
 
     public Todo {
-        // Aeltere Dateien kennen das Feld nicht - dann eben keine.
+        // Aeltere Dateien kennen das Feld nicht - dann eben keine. Fuer den
+        // Link gilt dasselbe, er bleibt dann einfach null.
         reminders = reminders == null ? List.of() : List.copyOf(reminders);
     }
 
@@ -39,14 +44,15 @@ public record Todo(
     }
 
     public Todo withDoneAt(Instant doneAt) {
-        return new Todo(id, areaId, parentId, title, createdAt, doneAt, dueAt, reminders);
+        return new Todo(id, areaId, parentId, title, link, createdAt, doneAt, dueAt, reminders);
     }
 
+    /** Der Link bleibt dabei, wie er ist - siehe {@code TodoService#update}. */
     public Todo withTitleAndDueAt(String title, LocalDate dueAt) {
-        return new Todo(id, areaId, parentId, title, createdAt, doneAt, dueAt, reminders);
+        return new Todo(id, areaId, parentId, title, link, createdAt, doneAt, dueAt, reminders);
     }
 
     public Todo withReminders(List<Reminder> reminders) {
-        return new Todo(id, areaId, parentId, title, createdAt, doneAt, dueAt, reminders);
+        return new Todo(id, areaId, parentId, title, link, createdAt, doneAt, dueAt, reminders);
     }
 }

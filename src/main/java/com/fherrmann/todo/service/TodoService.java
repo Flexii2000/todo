@@ -14,12 +14,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Die Regeln: Bereiche, Aufgaben, Unteraufgaben, und was nach dem Abhaken
@@ -36,6 +39,7 @@ public class TodoService {
 
     static final int MAX_TITLE = 200;
     static final int MAX_AREA_NAME = 40;
+    static final int MAX_LINK = 500;
 
     private final TodoRepository repository;
     private final Clock clock;
@@ -118,7 +122,7 @@ public class TodoService {
     }
 
     private Board.TodoView view(Todo todo, List<Board.TodoView> children) {
-        return new Board.TodoView(todo.id(), todo.title(), todo.createdAt(), todo.doneAt(),
+        return new Board.TodoView(todo.id(), todo.title(), todo.link(), todo.createdAt(), todo.doneAt(),
                 todo.isDone() ? todo.doneAt().plus(doneVisible) : null,
                 todo.dueAt(),
                 todo.reminders().stream()
@@ -170,6 +174,7 @@ public class TodoService {
 
     public Board createTodo(TodoRequest request) {
         String title = cleanTitle(request);
+        String link = cleanLink(request.link());
         TodoData data = repository.load();
         if (request.areaId() == null) {
             throw badRequest("Zu welchem Bereich gehört die Aufgabe?");
@@ -186,11 +191,15 @@ public class TodoService {
         }
         List<Todo> todos = new ArrayList<>(data.todos());
         todos.add(new Todo(TodoRepository.newId(), request.areaId(), request.parentId(),
-                title, Instant.now(clock), null, request.dueAt(), List.of()));
+                title, link, Instant.now(clock), null, request.dueAt(), List.of()));
         return save(new TodoData(data.areas(), todos));
     }
 
-    /** Text und Faelligkeit aendern. Keine Faelligkeit im Request heisst: keine mehr. */
+    /**
+     * Text und Faelligkeit aendern. Keine Faelligkeit im Request heisst: keine
+     * mehr. Der Link bleibt unberuehrt, auch wenn der Rumpf keinen mitbringt -
+     * so schicken es alle Clients, die ihn nicht kennen.
+     */
     public Board update(String id, TodoRequest request) {
         String title = cleanTitle(request);
         TodoData data = repository.load();
@@ -282,6 +291,37 @@ public class TodoService {
             throw badRequest("Der Text darf höchstens " + MAX_TITLE + " Zeichen haben.");
         }
         return title;
+    }
+
+    /**
+     * Leer heisst kein Link. Sonst nur eine absolute Adresse mit http oder
+     * https: die Weboberflaeche setzt den Link als {@code href}, und ein
+     * {@code javascript:}-Link waere dort ausfuehrbarer Code.
+     */
+    private static String cleanLink(String raw) {
+        String link = raw == null ? "" : raw.trim();
+        if (link.isEmpty()) {
+            return null;
+        }
+        if (link.length() > MAX_LINK) {
+            throw badRequest("Der Link ist zu lang.");
+        }
+        String lower = link.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("https://") && !lower.startsWith("http://")) {
+            throw badRequest("Der Link muss mit https:// oder http:// anfangen.");
+        }
+        if (!hasHost(link)) {
+            throw badRequest("Der Link ist keine gültige Adresse.");
+        }
+        return link;
+    }
+
+    private static boolean hasHost(String link) {
+        try {
+            return new URI(link).getHost() != null;
+        } catch (URISyntaxException e) {
+            return false;
+        }
     }
 
     private static String cleanAreaName(AreaRequest request) {

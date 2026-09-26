@@ -50,7 +50,7 @@ class ReminderSchedulerTest {
     }
 
     private static Todo todo(Instant doneAt, LocalDate dueAt, Reminder... reminders) {
-        return new Todo("t1", "uni", null, "Hausarbeit", NOW.minus(Duration.ofDays(1)), doneAt, dueAt, List.of(reminders));
+        return new Todo("t1", "uni", null, "Hausarbeit", null, NOW.minus(Duration.ofDays(1)), doneAt, dueAt, List.of(reminders));
     }
 
     private static TodoData data(Todo todo) {

@@ -18,6 +18,11 @@ Seiten im selben Tab.
 - Offene Aufgaben oben (älteste zuerst), erledigte darunter (zuletzt
   erledigte zuerst).
 - **Fälligkeit** je Aufgabe — eine Anzeige, überfällig heißt rot, mehr nicht.
+- **Link** je Aufgabe, optional — für Aufgaben, die ein anderer Dienst anlegt
+  (Torbens Feature-Wünsche landen als Unteraufgabe unter „Healthy“ mit Link
+  auf ihre Wunsch-Seite). Im Browser und in Fokus ein kleines ↗ neben dem
+  Titel. Gesetzt wird er nur beim Anlegen; Ändern lässt ihn stehen, weil
+  ältere Clients das Feld nicht kennen und ihn sonst löschen würden.
 - **Erinnerungen**, beliebig viele je Aufgabe: Zeitpunkte, zu denen der Dienst
   eine Push-Nachricht an die Fokus-App schickt („Erinnerung: Hausarbeit —
   Uni · fällig am 10.09."). Nur solange die Aufgabe offen ist; nur in der
@@ -46,8 +51,8 @@ Antwort ist das ganze Brett** (`Board`).
 | POST | `/api/areas` | `{name}` → 201 |
 | PUT | `/api/areas/{id}` | `{name}` |
 | DELETE | `/api/areas/{id}` | samt Aufgaben |
-| POST | `/api/todos` | `{areaId, parentId?, title}` → 201 |
-| PUT | `/api/todos/{id}` | `{title, dueAt?}` — fehlt `dueAt`, gibt es keine Fälligkeit mehr |
+| POST | `/api/todos` | `{areaId, parentId?, title, link?}` → 201 |
+| PUT | `/api/todos/{id}` | `{title, dueAt?}` — fehlt `dueAt`, gibt es keine Fälligkeit mehr; der Link bleibt, wie er ist |
 | POST | `/api/todos/{id}/reminders` | `{at}` (Zeitpunkt mit Zone, nur Zukunft) → 201 |
 | DELETE | `/api/todos/{id}/reminders/{rid}` | Erinnerung entfernen |
 | POST | `/api/devices` | `{token}` — Push-Kennung der Fokus-App |
@@ -58,17 +63,30 @@ Antwort ist das ganze Brett** (`Board`).
 ```
 Board     areas[], includesHidden, hiddenDoneCount, now
 AreaView  id, name, position, openCount, hiddenDoneCount, todos[]
-TodoView  id, title, createdAt, doneAt | null, visibleUntil | null,
+TodoView  id, title, link | null, createdAt, doneAt | null, visibleUntil | null,
           dueAt | null, reminders[] {id, at, sentAt | null}, children[]
 ```
 
 Fehler kommen als Klartext (`Eine Aufgabe braucht einen Text.`).
 
+`link` ist eine absolute Adresse mit `https://` oder `http://`, höchstens 500
+Zeichen, wird getrimmt; leer oder fehlend heißt kein Link. Alles andere ist
+ein 400:
+
+- `Der Link muss mit https:// oder http:// anfangen.`
+- `Der Link ist zu lang.`
+- `Der Link ist keine gültige Adresse.`
+
+Die Schema-Prüfung ist nicht Kosmetik — die Weboberfläche setzt den Link als
+`href`, ein `javascript:` wäre dort ausführbar. `link` steht in jeder
+`TodoView`, auch als `null`.
+
 ## Daten
 
 `data/todo.json` — Bereiche und Aufgaben. Geschrieben wird erst daneben, dann
-umbenannt. Kein Archiv-Mechanismus: „verschwunden" ist eine Frage der
-Sichtfrist beim Lesen, nicht des Speicherns.
+umbenannt. Neue Felder sind optional: eine ältere Datei ohne `link` (oder
+ohne `reminders`) lädt weiter, dann eben ohne. Kein Archiv-Mechanismus:
+„verschwunden" ist eine Frage der Sichtfrist beim Lesen, nicht des Speicherns.
 
 ## Betrieb
 

@@ -43,6 +43,12 @@ li.todo.done .title { text-decoration:line-through; color:var(--muted); }
 li.todo .due { color:var(--muted); font-size:.75rem; margin-left:.45rem; white-space:nowrap; }
 li.todo .due.overdue { color:var(--danger); font-weight:600; }
 li.todo .bell { color:var(--muted); font-size:.75rem; margin-left:.45rem; white-space:nowrap; }
+/* Der Link neben dem Text: ein eigenes Ziel. inline-block, damit ihn der
+   Strich einer erledigten Aufgabe nicht mit durchstreicht. */
+li.todo .link { display:inline-block; margin-left:.3rem; padding:0 .3rem; border-radius:.35rem;
+  color:var(--accent); text-decoration:none; font-size:.875rem; line-height:1.35; }
+li.todo .link:hover { background:var(--grid); }
+li.todo.done .link { color:var(--muted); }
 li.todo .del { font-size:.75rem; }
 /* Das Detailfeld unter einer Aufgabe */
 .details { margin:.1rem 0 .4rem 1.75rem; padding:.55rem .7rem; border:1px solid var(--ring);

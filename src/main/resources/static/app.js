@@ -98,6 +98,23 @@
     return form;
   }
 
+  // Der Link einer Aufgabe, etwa auf die Wunsch-Seite, von der sie stammt: ein
+  // eigenes kleines Ziel neben dem Text, damit der Klick auf den Text weiter
+  // die Details aufklappt. Nur http(s) - der Dienst laesst nichts anderes
+  // durch, aber ein href mit javascript: waere hier ausfuehrbarer Code.
+  function linkTo(url) {
+    if (!url || !/^https?:\/\//i.test(url)) return null;
+    const a = el("a", "link", "↗");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.title = "Link öffnen";
+    a.setAttribute("aria-label", "Link öffnen");
+    // Sonst klappt derselbe Klick auch noch die Details auf.
+    a.addEventListener("click", (ev) => ev.stopPropagation());
+    return a;
+  }
+
   function todoItem(area, todo, isChild) {
     const li = el("li", "todo" + (todo.doneAt ? " done" : ""));
     const box = el("input");
@@ -107,6 +124,8 @@
     box.addEventListener("change", () =>
       run(box.checked ? "POST" : "DELETE", "todos/" + todo.id + "/done"));
     const title = el("span", "title", todo.title);
+    const link = linkTo(todo.link);
+    if (link) title.append(link);
     if (todo.dueAt) {
       const due = el("span", "due" + (!todo.doneAt && todo.dueAt < today() ? " overdue" : ""),
         dueLabel(todo.dueAt));

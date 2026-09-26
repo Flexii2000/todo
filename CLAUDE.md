@@ -22,6 +22,10 @@ Tab in der iOS-App Fokus (`~/Server-Projects/cockpit-ios`).
   Schicksal ihrer Aufgabe: ist die vom Brett, ist sie es auch.
 - **Jede Antwort ist das ganze Brett.** Keine Teilantworten, die ein Client
   zusammensetzen müsste.
+- **Der Link wird nur beim Anlegen gesetzt.** `PUT /api/todos/{id}` lässt ihn
+  stehen, auch ohne `link` im Rumpf: Fokus auf dem Handy und offene
+  Browser-Tabs kennen das Feld nicht. Ein PUT, das ihn übernimmt, löschte bei
+  jedem Speichern Links.
 - **Erinnerungen schickt der Dienst**, nicht die App (`ReminderScheduler`,
   jede Minute). Eine erledigte Aufgabe erinnert an nichts mehr; eine um mehr
   als eine Stunde verpasste Erinnerung ist verpasst. Beides wird als

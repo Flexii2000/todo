@@ -22,10 +22,12 @@ public record Board(List<AreaView> areas, boolean includesHidden, int hiddenDone
     }
 
     /**
+     * @param link         Adresse zur Aufgabe (http/https), oder {@code null}.
+     *                     Steht immer im JSON, auch als {@code null}.
      * @param visibleUntil bei erledigten: bis wann sie noch zu sehen ist.
      *                     Damit kann die Oberflaeche „verschwindet morgen" sagen.
      */
-    public record TodoView(String id, String title, Instant createdAt, Instant doneAt,
+    public record TodoView(String id, String title, String link, Instant createdAt, Instant doneAt,
                            Instant visibleUntil, LocalDate dueAt, List<ReminderView> reminders,
                            List<TodoView> children) {
     }

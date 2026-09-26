@@ -58,7 +58,7 @@ public class TodoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createTodo(request));
     }
 
-    /** Text und Faelligkeit. Ohne {@code dueAt} im Rumpf gibt es keine mehr. */
+    /** Text und Faelligkeit. Ohne {@code dueAt} im Rumpf gibt es keine mehr; der Link bleibt. */
     @PutMapping("/todos/{id}")
     public Board updateTodo(@PathVariable String id, @RequestBody TodoRequest request) {
         return service.update(id, request);

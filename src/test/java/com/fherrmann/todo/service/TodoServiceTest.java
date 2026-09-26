@@ -10,6 +10,7 @@ import com.fherrmann.todo.model.TodoData;
 import com.fherrmann.todo.repository.TodoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
@@ -59,7 +60,7 @@ class TodoServiceTest {
 
     @Test
     void anlegenAbhakenUndDerHakenBleibtDreiTageSichtbar() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "Rasen mähen", null));
+        Board board = service.createTodo(new TodoRequest("privat", null, "Rasen mähen", null, null));
         assertEquals(1, board.areas().get(0).openCount());
         String id = firstTodoId(board, 0);
 
@@ -87,7 +88,7 @@ class TodoServiceTest {
 
     @Test
     void hakenZurueckAuchNachDemVerschwinden() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "Steuer", null));
+        Board board = service.createTodo(new TodoRequest("privat", null, "Steuer", null, null));
         String id = firstTodoId(board, 0);
         service.done(id);
         TodoService later = new TodoService(mockRepo(), Clock.fixed(NOW.plus(Duration.ofDays(10)), BERLIN), 3);
@@ -98,10 +99,10 @@ class TodoServiceTest {
 
     @Test
     void unteraufgabenHaengenAnIhrerAufgabe() {
-        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit", null));
+        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit", null, null));
         String parent = firstTodoId(board, 1);
-        board = service.createTodo(new TodoRequest("uni", parent, "Gliederung", null));
-        board = service.createTodo(new TodoRequest("uni", parent, "Quellen", null));
+        board = service.createTodo(new TodoRequest("uni", parent, "Gliederung", null, null));
+        board = service.createTodo(new TodoRequest("uni", parent, "Quellen", null, null));
         Board.TodoView top = board.areas().get(1).todos().get(0);
         assertEquals(2, top.children().size());
         assertEquals(3, board.areas().get(1).openCount());
@@ -109,10 +110,10 @@ class TodoServiceTest {
         // Keine Unteraufgabe der Unteraufgabe.
         String child = top.children().get(0).id();
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("uni", child, "zu tief", null)));
+                () -> service.createTodo(new TodoRequest("uni", child, "zu tief", null, null)));
         // Und nicht in einem anderen Bereich.
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("privat", parent, "falscher Bereich", null)));
+                () -> service.createTodo(new TodoRequest("privat", parent, "falscher Bereich", null, null)));
 
         // Loeschen nimmt die Kinder mit.
         board = service.deleteTodo(parent);
@@ -122,9 +123,9 @@ class TodoServiceTest {
 
     @Test
     void erledigteAufgabeNimmtIhreUnteraufgabenMitVomBrett() {
-        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit", null));
+        Board board = service.createTodo(new TodoRequest("uni", null, "Hausarbeit", null, null));
         String parent = firstTodoId(board, 1);
-        service.createTodo(new TodoRequest("uni", parent, "Gliederung", null));
+        service.createTodo(new TodoRequest("uni", parent, "Gliederung", null, null));
         service.done(parent);
         TodoService later = new TodoService(mockRepo(), Clock.fixed(NOW.plus(Duration.ofDays(4)), BERLIN), 3);
         Board after = later.board(false);
@@ -139,8 +140,8 @@ class TodoServiceTest {
 
     @Test
     void offeneZuerstDannErledigte() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "A", null));
-        board = service.createTodo(new TodoRequest("privat", null, "B", null));
+        Board board = service.createTodo(new TodoRequest("privat", null, "A", null, null));
+        board = service.createTodo(new TodoRequest("privat", null, "B", null, null));
         String a = board.areas().get(0).todos().get(0).id();
         board = service.done(a);
         List<Board.TodoView> todos = board.areas().get(0).todos();
@@ -157,7 +158,7 @@ class TodoServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.createArea(new AreaRequest(" ")));
 
         String id = board.areas().get(2).id();
-        service.createTodo(new TodoRequest(id, null, "nginx", null));
+        service.createTodo(new TodoRequest(id, null, "nginx", null, null));
         board = service.renameArea(id, new AreaRequest("Heimserver"));
         assertEquals("Heimserver", board.areas().get(2).name());
         board = service.deleteArea(id);
@@ -167,10 +168,10 @@ class TodoServiceTest {
 
     @Test
     void faelligkeitSetzenUndWiederNehmen() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "Steuer", LocalDate.of(2026, 9, 30)));
+        Board board = service.createTodo(new TodoRequest("privat", null, "Steuer", LocalDate.of(2026, 9, 30), null));
         String id = firstTodoId(board, 0);
         assertEquals(LocalDate.of(2026, 9, 30), board.areas().get(0).todos().get(0).dueAt());
-        board = service.update(id, new TodoRequest(null, null, "Steuererklärung", null));
+        board = service.update(id, new TodoRequest(null, null, "Steuererklärung", null, null));
         Board.TodoView view = board.areas().get(0).todos().get(0);
         assertEquals("Steuererklärung", view.title());
         assertNull(view.dueAt(), "ohne dueAt im Request gibt es keine Faelligkeit mehr");
@@ -178,7 +179,7 @@ class TodoServiceTest {
 
     @Test
     void erinnerungenBeliebigVieleNurInDerZukunft() {
-        Board board = service.createTodo(new TodoRequest("privat", null, "Anrufen", null));
+        Board board = service.createTodo(new TodoRequest("privat", null, "Anrufen", null, null));
         String id = firstTodoId(board, 0);
         board = service.addReminder(id, new ReminderRequest(NOW.plus(Duration.ofHours(2))));
         board = service.addReminder(id, new ReminderRequest(NOW.plus(Duration.ofHours(1))));
@@ -195,8 +196,91 @@ class TodoServiceTest {
     @Test
     void leererTextWirdAbgelehnt() {
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("privat", null, "   ", null)));
+                () -> service.createTodo(new TodoRequest("privat", null, "   ", null, null)));
         assertThrows(ResponseStatusException.class,
-                () -> service.createTodo(new TodoRequest("gibtsnicht", null, "x", null)));
+                () -> service.createTodo(new TodoRequest("gibtsnicht", null, "x", null, null)));
+    }
+
+    // MARK: - Links
+
+    private static final String LINK = "https://fherrmann.com/feature-requests/42";
+
+    private static Board.TodoView byTitle(Board board, int areaIndex, String title) {
+        return board.areas().get(areaIndex).todos().stream()
+                .filter(t -> t.title().equals(title)).findFirst().orElseThrow();
+    }
+
+    @Test
+    void anlegenMitLinkGetrimmtUndLeerHeisstKeiner() {
+        Board board = service.createTodo(new TodoRequest("privat", null, "Wunsch", null, "  " + LINK + "\n"));
+        assertEquals(LINK, byTitle(board, 0, "Wunsch").link());
+        assertEquals(LINK, stored.get().todos().get(0).link(), "so steht er auch in der Datei");
+
+        board = service.createTodo(new TodoRequest("privat", null, "Leer", null, "   "));
+        assertNull(byTitle(board, 0, "Leer").link(), "leer heisst kein Link");
+        board = service.createTodo(new TodoRequest("privat", null, "Ohne", null, null));
+        assertNull(byTitle(board, 0, "Ohne").link());
+
+        board = service.createTodo(new TodoRequest("privat", null, "Gross", null, "HTTP://Example.org/A"));
+        assertEquals("HTTP://Example.org/A", byTitle(board, 0, "Gross").link(), "Gross- und Kleinschreibung im Schema zaehlt nicht");
+    }
+
+    @Test
+    void ungueltigerLinkIst400UndLegtNichtsAn() {
+        String scheme = "Der Link muss mit https:// oder http:// anfangen.";
+        String invalid = "Der Link ist keine gültige Adresse.";
+        assertRejected("fherrmann.com/feature-requests/42", scheme);
+        assertRejected("javascript:alert(1)", scheme);
+        assertRejected("ftp://fherrmann.com/datei", scheme);
+        assertRejected("https:/fherrmann.com", scheme);
+        assertRejected("https://", invalid);
+        assertRejected("https://fherrmann.com/mit leerzeichen", invalid);
+
+        String base = "https://fherrmann.com/";
+        assertRejected(base + "x".repeat(TodoService.MAX_LINK + 1 - base.length()), "Der Link ist zu lang.");
+        assertTrue(stored.get().todos().isEmpty(), "abgelehnt heisst: nichts angelegt");
+
+        String longest = base + "x".repeat(TodoService.MAX_LINK - base.length());
+        Board board = service.createTodo(new TodoRequest("privat", null, "Lang", null, longest));
+        assertEquals(longest, byTitle(board, 0, "Lang").link(), "genau 500 Zeichen gehen noch");
+    }
+
+    private void assertRejected(String link, String reason) {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service.createTodo(new TodoRequest("privat", null, "Wunsch", null, link)), link);
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode(), link);
+        assertEquals(reason, e.getReason(), link);
+    }
+
+    @Test
+    void aendernLaesstDenLinkStehen() {
+        Board board = service.createTodo(new TodoRequest("privat", null, "Wunsch", null, LINK));
+        String id = firstTodoId(board, 0);
+        // So schicken es Fokus und die Weboberflaeche: Text und Faelligkeit, kein Link.
+        board = service.update(id, new TodoRequest(null, null, "Wunsch, umformuliert", LocalDate.of(2026, 10, 1), null));
+        Board.TodoView view = board.areas().get(0).todos().get(0);
+        assertEquals("Wunsch, umformuliert", view.title());
+        assertEquals(LocalDate.of(2026, 10, 1), view.dueAt());
+        assertEquals(LINK, view.link());
+        // Auch Abhaken, Zuruecknehmen und Erinnerungen fassen ihn nicht an.
+        service.done(id);
+        service.reopen(id);
+        board = service.addReminder(id, new ReminderRequest(NOW.plus(Duration.ofHours(1))));
+        assertEquals(LINK, board.areas().get(0).todos().get(0).link());
+    }
+
+    @Test
+    void unteraufgabeBringtIhrenLinkImBrettMit() {
+        // Der Fall, fuer den es die Links gibt: ein Wunsch als Unteraufgabe unter „Healthy".
+        Board board = service.createArea(new AreaRequest("Server"));
+        String server = board.areas().get(2).id();
+        board = service.createTodo(new TodoRequest(server, null, "Healthy", null, null));
+        String healthy = firstTodoId(board, 2);
+        board = service.createTodo(new TodoRequest(server, healthy, "Wunsch von Torben", null, LINK));
+        Board.TodoView top = board.areas().get(2).todos().get(0);
+        assertNull(top.link());
+        assertEquals(LINK, top.children().get(0).link());
+        assertEquals(LINK, service.board(false).areas().get(2).todos().get(0).children().get(0).link(),
+                "auch beim naechsten Laden");
     }
 }
