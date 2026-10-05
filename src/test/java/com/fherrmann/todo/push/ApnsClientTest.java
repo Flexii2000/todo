@@ -92,4 +92,14 @@ class ApnsClientTest {
         out.writeBytes(body.toByteArray());
         return out.toByteArray();
     }
+
+    @Test
+    @DisplayName("Mit Link steht er neben kind in der Nutzlast, ohne fehlt das Feld")
+    void payloadCarriesTheLinkOnlyWhenThereIsOne() {
+        assertThat(ApnsClient.payload("Erinnerung: Hausarbeit", "Uni", null)).isEqualTo(
+                "{\"aps\":{\"alert\":{\"title\":\"Erinnerung: Hausarbeit\",\"body\":\"Uni\"},\"sound\":\"default\"},\"kind\":\"todo\"}");
+        assertThat(ApnsClient.payload("Feature Request · coHabit", "Torben: \"Dunkel\"", "https://fherrmann.com/feature-requests/42"))
+                .isEqualTo("{\"aps\":{\"alert\":{\"title\":\"Feature Request · coHabit\",\"body\":\"Torben: \\\"Dunkel\\\"\"},"
+                        + "\"sound\":\"default\"},\"kind\":\"todo\",\"link\":\"https://fherrmann.com/feature-requests/42\"}");
+    }
 }

@@ -8,6 +8,7 @@ import com.fherrmann.todo.model.Area;
 import com.fherrmann.todo.model.Reminder;
 import com.fherrmann.todo.model.Todo;
 import com.fherrmann.todo.model.TodoData;
+import com.fherrmann.todo.push.PushNotifier;
 import com.fherrmann.todo.repository.TodoRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -40,14 +41,18 @@ public class TodoService {
     static final int MAX_TITLE = 200;
     static final int MAX_AREA_NAME = 40;
     static final int MAX_LINK = 500;
+    static final int MAX_NOTIFICATION_TITLE = 100;
+    static final int MAX_NOTIFICATION_BODY = 300;
 
     private final TodoRepository repository;
+    private final PushNotifier notifier;
     private final Clock clock;
     private final Duration doneVisible;
 
-    public TodoService(TodoRepository repository, Clock clock,
+    public TodoService(TodoRepository repository, PushNotifier notifier, Clock clock,
                        @Value("${todo.done-visible-days:3}") int doneVisibleDays) {
         this.repository = repository;
+        this.notifier = notifier;
         this.clock = clock;
         this.doneVisible = Duration.ofDays(doneVisibleDays);
     }
@@ -192,7 +197,14 @@ public class TodoService {
         List<Todo> todos = new ArrayList<>(data.todos());
         todos.add(new Todo(TodoRepository.newId(), request.areaId(), request.parentId(),
                 title, link, Instant.now(clock), null, request.dueAt(), List.of()));
-        return save(new TodoData(data.areas(), todos));
+        Board board = save(new TodoData(data.areas(), todos));
+        // Erst wenn die Aufgabe steht: eine Meldung zu einer abgelehnten waere falscher Alarm.
+        TodoRequest.Notification notification = request.notification();
+        String notificationTitle = notification == null ? "" : shorten(notification.title(), MAX_NOTIFICATION_TITLE);
+        if (!notificationTitle.isEmpty()) {
+            notifier.announce(notificationTitle, shorten(notification.body(), MAX_NOTIFICATION_BODY), link);
+        }
+        return board;
     }
 
     /**
@@ -322,6 +334,15 @@ public class TodoService {
         } catch (URISyntaxException e) {
             return false;
         }
+    }
+
+    /**
+     * Eine Zeile, notfalls gekuerzt. Die Benachrichtigung ist Beiwerk: an ihr
+     * soll keine Aufgabe scheitern, die sonst angelegt wuerde.
+     */
+    private static String shorten(String raw, int max) {
+        String text = raw == null ? "" : raw.strip().replaceAll("\\s+", " ");
+        return text.length() <= max ? text : text.substring(0, max - 1).strip() + "…";
     }
 
     private static String cleanAreaName(AreaRequest request) {

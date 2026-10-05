@@ -40,6 +40,14 @@ Push-Kennung mit `POST /api/devices` an; abgelehnte Kennungen fliegen raus.
 Ohne Schlüssel in `/etc/todo.env` bleibt alles stumm, sonst läuft der Dienst
 unverändert.
 
+Außerdem kann ein anderer Dienst beim Anlegen einer Aufgabe eine
+**Benachrichtigung** mitschicken (`notification: {title, body}`): der
+Kalorienzähler meldet so Feature Requests von anderen („Feature Request ·
+coHabit — Torben: …“). Sie geht erst raus, wenn die Aufgabe steht, im
+Hintergrund (`push/PushNotifier`), und trägt den Link der Aufgabe mit — ein
+Tipp darauf öffnet in Fokus die Karte. Zu lange Texte werden gekürzt, ein
+leerer Titel heißt: keine Benachrichtigung; an ihr scheitert keine Aufgabe.
+
 ## REST-API
 
 Alles unter `/todo/api`, hinter dem `fh_private`-Cookie (sonst 403). **Jede
@@ -51,7 +59,7 @@ Antwort ist das ganze Brett** (`Board`).
 | POST | `/api/areas` | `{name}` → 201 |
 | PUT | `/api/areas/{id}` | `{name}` |
 | DELETE | `/api/areas/{id}` | samt Aufgaben |
-| POST | `/api/todos` | `{areaId, parentId?, title, link?}` → 201 |
+| POST | `/api/todos` | `{areaId, parentId?, title, link?, notification?}` → 201; `notification` = `{title, body}` |
 | PUT | `/api/todos/{id}` | `{title, dueAt?}` — fehlt `dueAt`, gibt es keine Fälligkeit mehr; der Link bleibt, wie er ist |
 | POST | `/api/todos/{id}/reminders` | `{at}` (Zeitpunkt mit Zone, nur Zukunft) → 201 |
 | DELETE | `/api/todos/{id}/reminders/{rid}` | Erinnerung entfernen |

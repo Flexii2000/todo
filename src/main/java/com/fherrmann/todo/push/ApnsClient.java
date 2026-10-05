@@ -83,13 +83,14 @@ public class ApnsClient {
      *         {@code false}, wenn Apple sie abgelehnt hat und sie weg soll.
      */
     public boolean send(String deviceToken, String title, String body) {
+        return send(deviceToken, title, body, null);
+    }
+
+    /** Wie oben; mit {@code link} oeffnet ein Tipp auf die Meldung diese Adresse. */
+    public boolean send(String deviceToken, String title, String body, String link) {
         if (!isConfigured()) {
             return true;
         }
-        // "kind": daran erkennt die Fokus-App, dass der To-Do-Tab gemeint ist.
-        String payload = """
-                {"aps":{"alert":{"title":"%s","body":"%s"},"sound":"default"},"kind":"todo"}"""
-                .formatted(escape(title), escape(body));
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(host + "/3/device/" + deviceToken))
@@ -98,7 +99,7 @@ public class ApnsClient {
                     .header("apns-push-type", "alert")
                     .header("apns-priority", "10")
                     .timeout(Duration.ofSeconds(15))
-                    .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                    .POST(HttpRequest.BodyPublishers.ofString(payload(title, body, link), StandardCharsets.UTF_8))
                     .build();
 
             HttpResponse<String> response =
@@ -118,6 +119,18 @@ public class ApnsClient {
             log.warn("Benachrichtigung konnte nicht zugestellt werden", e);
             return true;
         }
+    }
+
+    /**
+     * "kind": daran erkennt die Fokus-App, dass der To-Do-Tab gemeint ist.
+     * "link" kennt sie erst seit den Feature Requests; eine aeltere Fassung
+     * uebergeht ihn und oeffnet eben nur den Tab.
+     */
+    static String payload(String title, String body, String link) {
+        String extra = link == null ? "" : ",\"link\":\"" + escape(link) + "\"";
+        return """
+                {"aps":{"alert":{"title":"%s","body":"%s"},"sound":"default"},"kind":"todo"%s}"""
+                .formatted(escape(title), escape(body), extra);
     }
 
     // MARK: - Signiertes Token

@@ -1,5 +1,6 @@
 package com.fherrmann.todo.controller;
 
+import com.fherrmann.todo.push.PushNotifier;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -19,6 +21,9 @@ import java.nio.file.Path;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -48,6 +53,10 @@ class TodoLinkApiTest {
 
     @Autowired
     private WebApplicationContext webApplicationContext;
+
+    /** Kein echter Versand im Test - nur: kommt die Benachrichtigung an? */
+    @MockitoBean
+    private PushNotifier notifier;
 
     private MockMvc mockMvc;
 
@@ -133,5 +142,19 @@ class TodoLinkApiTest {
                 .andExpect(jsonPath(SERVER + ".todos[0].title").value("Wunsch, umformuliert"))
                 .andExpect(jsonPath(SERVER + ".todos[0].dueAt").value("2026-10-01"))
                 .andExpect(jsonPath(SERVER + ".todos[0].link").value(LINK));
+    }
+
+    @Test
+    void benachrichtigungImRumpfErreichtDenVersandMitDemLink() throws Exception {
+        // So schickt es der Kalorienzaehler bei einem Feature Request von Torben.
+        postTodo("{\"areaId\":\"" + serverId() + "\",\"title\":\"Wunsch von Torben\",\"link\":\"" + LINK
+                + "\",\"notification\":{\"title\":\"Feature Request · Healthy\",\"body\":\"Torben: Wunsch\"}}");
+        verify(notifier).announce("Feature Request · Healthy", "Torben: Wunsch", LINK);
+    }
+
+    @Test
+    void ohneBenachrichtigungImRumpfKeinVersand() throws Exception {
+        postTodo("{\"areaId\":\"" + serverId() + "\",\"title\":\"Healthy\"}");
+        verify(notifier, never()).announce(any(), any(), any());
     }
 }

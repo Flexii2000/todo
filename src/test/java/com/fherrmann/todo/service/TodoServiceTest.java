@@ -7,6 +7,7 @@ import com.fherrmann.todo.dto.TodoRequest;
 import com.fherrmann.todo.model.Area;
 import com.fherrmann.todo.model.Todo;
 import com.fherrmann.todo.model.TodoData;
+import com.fherrmann.todo.push.PushNotifier;
 import com.fherrmann.todo.repository.TodoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,8 +28,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TodoServiceTest {
@@ -37,6 +41,7 @@ class TodoServiceTest {
     private static final ZoneId BERLIN = ZoneId.of("Europe/Berlin");
 
     private final AtomicReference<TodoData> stored = new AtomicReference<>();
+    private final PushNotifier notifier = mock(PushNotifier.class);
     private TodoService service;
     private Clock clock;
 
@@ -47,7 +52,7 @@ class TodoServiceTest {
         doAnswer(inv -> { stored.set(inv.getArgument(0)); return null; })
                 .when(repository).save(any());
         clock = Clock.fixed(NOW, BERLIN);
-        service = new TodoService(repository, clock, 3);
+        service = new TodoService(repository, notifier, clock, 3);
         stored.set(new TodoData(List.of(
                 new Area("privat", "Privat", 0, NOW.minus(Duration.ofDays(30))),
                 new Area("uni", "Uni", 1, NOW.minus(Duration.ofDays(30)))),
@@ -71,7 +76,7 @@ class TodoServiceTest {
         assertEquals(0, board.areas().get(0).openCount());
 
         // Drei Tage spaeter: weg vom Brett, aber nicht aus der Datei.
-        TodoService later = new TodoService(mockRepo(), Clock.fixed(NOW.plus(Duration.ofDays(3)), BERLIN), 3);
+        TodoService later = new TodoService(mockRepo(), notifier, Clock.fixed(NOW.plus(Duration.ofDays(3)), BERLIN), 3);
         Board after = later.board(false);
         assertTrue(after.areas().get(0).todos().isEmpty());
         assertEquals(1, after.hiddenDoneCount());
@@ -91,7 +96,7 @@ class TodoServiceTest {
         Board board = service.createTodo(new TodoRequest("privat", null, "Steuer", null, null));
         String id = firstTodoId(board, 0);
         service.done(id);
-        TodoService later = new TodoService(mockRepo(), Clock.fixed(NOW.plus(Duration.ofDays(10)), BERLIN), 3);
+        TodoService later = new TodoService(mockRepo(), notifier, Clock.fixed(NOW.plus(Duration.ofDays(10)), BERLIN), 3);
         Board reopened = later.reopen(id);
         assertNull(reopened.areas().get(0).todos().get(0).doneAt());
         assertEquals(1, reopened.areas().get(0).openCount());
@@ -127,7 +132,7 @@ class TodoServiceTest {
         String parent = firstTodoId(board, 1);
         service.createTodo(new TodoRequest("uni", parent, "Gliederung", null, null));
         service.done(parent);
-        TodoService later = new TodoService(mockRepo(), Clock.fixed(NOW.plus(Duration.ofDays(4)), BERLIN), 3);
+        TodoService later = new TodoService(mockRepo(), notifier, Clock.fixed(NOW.plus(Duration.ofDays(4)), BERLIN), 3);
         Board after = later.board(false);
         assertTrue(after.areas().get(1).todos().isEmpty());
         // Die offene Unteraufgabe zaehlt nicht mehr als offen - sie haengt an
@@ -282,5 +287,43 @@ class TodoServiceTest {
         assertEquals(LINK, top.children().get(0).link());
         assertEquals(LINK, service.board(false).areas().get(2).todos().get(0).children().get(0).link(),
                 "auch beim naechsten Laden");
+    }
+
+    // MARK: - Benachrichtigung beim Anlegen
+
+    @Test
+    void benachrichtigungGehtMitDemLinkDerAufgabeRaus() {
+        service.createTodo(new TodoRequest("privat", null, "Wunsch", null, LINK,
+                new TodoRequest.Notification(" Feature Request · coHabit ", "Torben:\n  Wunsch")));
+        verify(notifier).announce("Feature Request · coHabit", "Torben: Wunsch", LINK);
+    }
+
+    @Test
+    void ohneBenachrichtigungOderOhneTitelBleibtEsStill() {
+        service.createTodo(new TodoRequest("privat", null, "Selbst getippt", null, null));
+        service.createTodo(new TodoRequest("privat", null, "Leerer Titel", null, LINK,
+                new TodoRequest.Notification("  ", "Text")));
+        service.createTodo(new TodoRequest("privat", null, "Kein Titel", null, LINK,
+                new TodoRequest.Notification(null, "Text")));
+        verify(notifier, never()).announce(any(), any(), any());
+        assertEquals(3, stored.get().todos().size(), "angelegt sind sie trotzdem");
+    }
+
+    @Test
+    void zuLangeBenachrichtigungWirdGekuerztStattAbgelehnt() {
+        service.createTodo(new TodoRequest("privat", null, "Wunsch", null, null,
+                new TodoRequest.Notification("T".repeat(500), "B".repeat(500))));
+        verify(notifier).announce("T".repeat(TodoService.MAX_NOTIFICATION_TITLE - 1) + "…",
+                "B".repeat(TodoService.MAX_NOTIFICATION_BODY - 1) + "…", null);
+    }
+
+    @Test
+    void abgelehnteAufgabeMeldetNichts() {
+        TodoRequest.Notification notification = new TodoRequest.Notification("Feature Request · Healthy", "Torben: x");
+        assertThrows(ResponseStatusException.class,
+                () -> service.createTodo(new TodoRequest("gibtsnicht", null, "x", null, LINK, notification)));
+        assertThrows(ResponseStatusException.class,
+                () -> service.createTodo(new TodoRequest("privat", null, "x", null, "kein-link", notification)));
+        verify(notifier, never()).announce(anyString(), anyString(), any());
     }
 }
