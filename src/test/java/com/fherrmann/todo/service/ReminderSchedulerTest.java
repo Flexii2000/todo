@@ -93,6 +93,26 @@ class ReminderSchedulerTest {
         verify(apns, never()).send(anyString(), anyString(), anyString());
     }
 
+    /**
+     * Waehrend die Pushes unterwegs sind, kommt eine Aufgabe dazu (etwa aus dem
+     * Postausgang der App) - der Vermerk darf sie nicht mit dem alten Stand ueberschreiben.
+     */
+    @Test
+    void wasWaehrendDesVerschickensDazukommtBleibt() {
+        ReminderScheduler scheduler = scheduler(data(todo(null, null,
+                new Reminder("r1", NOW.minus(Duration.ofSeconds(30)), null))));
+        Todo neu = new Todo("t2", "uni", null, "Neu", null, NOW, null, null, List.of());
+        when(apns.send(anyString(), anyString(), anyString())).thenAnswer(inv -> {
+            TodoData now = stored.get();
+            stored.set(new TodoData(now.areas(), java.util.stream.Stream.concat(now.todos().stream(),
+                    java.util.stream.Stream.of(neu)).toList()));
+            return true;
+        });
+        scheduler.sendDueReminders();
+        assertEquals(2, stored.get().todos().size(), "die neue Aufgabe ist noch da");
+        assertNotNull(stored.get().todos().get(0).reminders().get(0).sentAt());
+    }
+
     @Test
     void abgelehnteKennungFliegtRaus() {
         ReminderScheduler scheduler = scheduler(data(todo(null, null,

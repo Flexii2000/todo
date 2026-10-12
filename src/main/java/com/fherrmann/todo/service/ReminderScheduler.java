@@ -17,8 +17,11 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -59,29 +62,43 @@ public class ReminderScheduler {
         TodoData data = repository.load();
         Map<String, String> areaNames = data.areas().stream()
                 .collect(Collectors.toMap(Area::id, Area::name));
-        List<Todo> todos = new ArrayList<>();
-        boolean changed = false;
+        // Je Aufgabe die Erinnerungen, die als "geschickt" vermerkt werden.
+        Map<String, Set<String>> handled = new HashMap<>();
         for (Todo todo : data.todos()) {
-            List<Reminder> reminders = new ArrayList<>();
             for (Reminder reminder : todo.reminders()) {
                 boolean due = reminder.sentAt() == null && !reminder.at().isAfter(now);
+                if (!due) {
+                    continue;
+                }
                 // Erledigte Aufgaben erinnern an nichts mehr - der Eintrag
                 // wird als "geschickt" abgehakt, damit er nicht ewig faellig bleibt.
-                if (due && (todo.isDone() || now.getEpochSecond() - reminder.at().getEpochSecond() > MAX_LATE_SECONDS)) {
-                    reminders.add(reminder.withSentAt(now));
-                    changed = true;
-                } else if (due) {
+                boolean missed = todo.isDone() || now.getEpochSecond() - reminder.at().getEpochSecond() > MAX_LATE_SECONDS;
+                if (!missed) {
                     send(todo, areaNames.getOrDefault(todo.areaId(), ""));
-                    reminders.add(reminder.withSentAt(now));
-                    changed = true;
-                } else {
-                    reminders.add(reminder);
                 }
+                handled.computeIfAbsent(todo.id(), id -> new HashSet<>()).add(reminder.id());
             }
-            todos.add(todo.withReminders(reminders));
         }
-        if (changed) {
-            repository.save(new TodoData(data.areas(), todos));
+        if (handled.isEmpty()) {
+            return;
+        }
+        // Vermerkt wird unter der Sperre des TodoService und mit frisch gelesenem Stand:
+        // waehrend die Pushes unterwegs waren, kann eine Aufgabe dazugekommen oder
+        // abgehakt worden sein - der Stand von vorhin wuerde das ueberschreiben.
+        synchronized (repository) {
+            TodoData fresh = repository.load();
+            List<Todo> todos = new ArrayList<>();
+            for (Todo todo : fresh.todos()) {
+                Set<String> ids = handled.get(todo.id());
+                if (ids == null) {
+                    todos.add(todo);
+                    continue;
+                }
+                todos.add(todo.withReminders(todo.reminders().stream()
+                        .map(r -> ids.contains(r.id()) && r.sentAt() == null ? r.withSentAt(now) : r)
+                        .toList()));
+            }
+            repository.save(new TodoData(fresh.areas(), todos));
         }
     }
 

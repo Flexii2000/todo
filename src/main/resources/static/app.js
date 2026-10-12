@@ -27,11 +27,17 @@
     banner.hidden = false;
   }
 
+  // true, wenn der Dienst die Aenderung angenommen hat - sonst kann der Aufrufer
+  // zuruecknehmen, was der Browser schon angezeigt hat (Haken, geleertes Feld).
   async function run(method, path, body) {
     try {
       banner.hidden = true;
       render(await call(method, path, body));
-    } catch (err) { fail(err); }
+      return true;
+    } catch (err) {
+      fail(err);
+      return false;
+    }
   }
 
   const load = () => run("GET", "board" + (showAll ? "?all=true" : ""));
@@ -88,12 +94,13 @@
     input.maxLength = 200;
     const button = el("button", null, "+");
     form.append(input, button);
-    form.addEventListener("submit", (ev) => {
+    form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const value = input.value.trim();
       if (!value) return;
       input.value = "";
-      onSubmit(value);
+      // Scheitert der Aufruf, steht der Text wieder da - sonst waere er weg.
+      if (!(await onSubmit(value)) && !input.value) input.value = value;
     });
     return form;
   }
@@ -121,8 +128,12 @@
     box.type = "checkbox";
     box.checked = !!todo.doneAt;
     box.title = todo.doneAt ? "Wieder öffnen" : "Erledigt";
-    box.addEventListener("change", () =>
-      run(box.checked ? "POST" : "DELETE", "todos/" + todo.id + "/done"));
+    box.addEventListener("change", async () => {
+      const wanted = box.checked;
+      // Der Browser hat den Haken schon gesetzt; nimmt der Dienst ihn nicht an,
+      // stuende sonst ein Haken da, den es nicht gibt.
+      if (!(await run(wanted ? "POST" : "DELETE", "todos/" + todo.id + "/done"))) box.checked = !wanted;
+    });
     const title = el("span", "title", todo.title);
     const link = linkTo(todo.link);
     if (link) title.append(link);
@@ -164,12 +175,14 @@
     const input = el("input");
     input.setAttribute("aria-label", "Unteraufgabe zu „" + todo.title + "“");
     form.append(el("span", "ring"), input);
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const text = input.value.trim();
       if (!text) return;
       input.value = "";
-      run("POST", "todos", { areaId: area.id, parentId: todo.id, title: text });
+      if (!(await run("POST", "todos", { areaId: area.id, parentId: todo.id, title: text })) && !input.value) {
+        input.value = text;
+      }
     });
     li.append(form);
     return li;

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Die Regeln: Bereiche, Aufgaben, Unteraufgaben, und was nach dem Abhaken
@@ -34,6 +35,12 @@ import java.util.Locale;
  * durchgestrichen stehen - lange genug, um ein Versehen zu bemerken - und
  * faellt dann aus dem Brett. In der Datei steht sie weiter; {@code all=true}
  * holt sie zurueck.
+ *
+ * <p>Jedes Aendern laedt, aendert und speichert unter einer Sperre - derselben
+ * wie der {@link ReminderScheduler}. Sonst schriebe ein Lauf, der zwischen
+ * Laden und Speichern Pushes verschickt, seinen alten Stand zurueck, und was in
+ * der Zeit dazukam, waere weg. Nachgesendete Aenderungen aus dem Postausgang
+ * der App kommen in Schueben, da faellt so etwas auf.
  */
 @Service
 public class TodoService {
@@ -43,6 +50,8 @@ public class TodoService {
     static final int MAX_LINK = 500;
     static final int MAX_NOTIFICATION_TITLE = 100;
     static final int MAX_NOTIFICATION_BODY = 300;
+    /** Kennungen, die ein Client selbst vergibt: kleingeschriebene UUIDs, wie der Dienst sie auch erzeugt. */
+    private static final Pattern CLIENT_ID = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
 
     private final TodoRepository repository;
     private final PushNotifier notifier;
@@ -140,39 +149,45 @@ public class TodoService {
     // MARK: - Bereiche
 
     public Board createArea(AreaRequest request) {
-        String name = cleanAreaName(request);
-        TodoData data = repository.load();
-        for (Area area : data.areas()) {
-            if (area.name().equalsIgnoreCase(name)) {
-                throw badRequest("Den Bereich „" + area.name() + "“ gibt es schon.");
+        synchronized (repository) {
+            String name = cleanAreaName(request);
+            TodoData data = repository.load();
+            for (Area area : data.areas()) {
+                if (area.name().equalsIgnoreCase(name)) {
+                    throw badRequest("Den Bereich „" + area.name() + "“ gibt es schon.");
+                }
             }
+            int position = data.areas().stream().mapToInt(Area::position).max().orElse(-1) + 1;
+            List<Area> areas = new ArrayList<>(data.areas());
+            areas.add(new Area(TodoRepository.newId(), name, position, Instant.now(clock)));
+            return save(new TodoData(areas, data.todos()));
         }
-        int position = data.areas().stream().mapToInt(Area::position).max().orElse(-1) + 1;
-        List<Area> areas = new ArrayList<>(data.areas());
-        areas.add(new Area(TodoRepository.newId(), name, position, Instant.now(clock)));
-        return save(new TodoData(areas, data.todos()));
     }
 
     public Board renameArea(String id, AreaRequest request) {
-        String name = cleanAreaName(request);
-        TodoData data = repository.load();
-        Area existing = findArea(data, id);
-        List<Area> areas = new ArrayList<>();
-        for (Area area : data.areas()) {
-            areas.add(area.id().equals(id)
-                    ? new Area(existing.id(), name, existing.position(), existing.createdAt())
-                    : area);
+        synchronized (repository) {
+            String name = cleanAreaName(request);
+            TodoData data = repository.load();
+            Area existing = findArea(data, id);
+            List<Area> areas = new ArrayList<>();
+            for (Area area : data.areas()) {
+                areas.add(area.id().equals(id)
+                        ? new Area(existing.id(), name, existing.position(), existing.createdAt())
+                        : area);
+            }
+            return save(new TodoData(areas, data.todos()));
         }
-        return save(new TodoData(areas, data.todos()));
     }
 
     /** Loescht den Bereich mit allen Aufgaben - auch den erledigten. Weg ist weg. */
     public Board deleteArea(String id) {
-        TodoData data = repository.load();
-        findArea(data, id);
-        return save(new TodoData(
-                data.areas().stream().filter(a -> !a.id().equals(id)).toList(),
-                data.todos().stream().filter(t -> !t.areaId().equals(id)).toList()));
+        synchronized (repository) {
+            TodoData data = repository.load();
+            findArea(data, id);
+            return save(new TodoData(
+                    data.areas().stream().filter(a -> !a.id().equals(id)).toList(),
+                    data.todos().stream().filter(t -> !t.areaId().equals(id)).toList()));
+        }
     }
 
     // MARK: - Aufgaben
@@ -180,7 +195,27 @@ public class TodoService {
     public Board createTodo(TodoRequest request) {
         String title = cleanTitle(request);
         String link = cleanLink(request.link());
-        TodoData data = repository.load();
+        String clientId = cleanClientId(request.id());
+        Board board;
+        synchronized (repository) {
+            TodoData data = repository.load();
+            if (clientId != null && data.todos().stream().anyMatch(t -> t.id().equals(clientId))) {
+                // Dieselbe Aufgabe noch einmal - aus dem Postausgang nachgesendet, weil
+                // die erste Antwort unterwegs verloren ging. Nichts doppelt, keine zweite Meldung.
+                return board(data, false);
+            }
+            board = addTodo(data, request, title, link, clientId);
+        }
+        // Erst wenn die Aufgabe steht: eine Meldung zu einer abgelehnten waere falscher Alarm.
+        TodoRequest.Notification notification = request.notification();
+        String notificationTitle = notification == null ? "" : shorten(notification.title(), MAX_NOTIFICATION_TITLE);
+        if (!notificationTitle.isEmpty()) {
+            notifier.announce(notificationTitle, shorten(notification.body(), MAX_NOTIFICATION_BODY), link);
+        }
+        return board;
+    }
+
+    private Board addTodo(TodoData data, TodoRequest request, String title, String link, String clientId) {
         if (request.areaId() == null) {
             throw badRequest("Zu welchem Bereich gehört die Aufgabe?");
         }
@@ -195,16 +230,25 @@ public class TodoService {
             }
         }
         List<Todo> todos = new ArrayList<>(data.todos());
-        todos.add(new Todo(TodoRepository.newId(), request.areaId(), request.parentId(),
+        todos.add(new Todo(clientId != null ? clientId : TodoRepository.newId(), request.areaId(), request.parentId(),
                 title, link, Instant.now(clock), null, request.dueAt(), List.of()));
-        Board board = save(new TodoData(data.areas(), todos));
-        // Erst wenn die Aufgabe steht: eine Meldung zu einer abgelehnten waere falscher Alarm.
-        TodoRequest.Notification notification = request.notification();
-        String notificationTitle = notification == null ? "" : shorten(notification.title(), MAX_NOTIFICATION_TITLE);
-        if (!notificationTitle.isEmpty()) {
-            notifier.announce(notificationTitle, shorten(notification.body(), MAX_NOTIFICATION_BODY), link);
+        return save(new TodoData(data.areas(), todos));
+    }
+
+    /**
+     * Die Kennung eines Clients: leer heisst keine. Sonst nur eine kleingeschriebene
+     * UUID - der Client fragt spaeter mit genau dieser Zeichenkette nach der Aufgabe,
+     * ein still umgeschriebener Wert fuehrte dann ins Leere.
+     */
+    private static String cleanClientId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
         }
-        return board;
+        String id = raw.trim();
+        if (!CLIENT_ID.matcher(id).matches()) {
+            throw badRequest("Die Kennung ist keine UUID.");
+        }
+        return id;
     }
 
     /**
@@ -213,38 +257,44 @@ public class TodoService {
      * so schicken es alle Clients, die ihn nicht kennen.
      */
     public Board update(String id, TodoRequest request) {
-        String title = cleanTitle(request);
-        TodoData data = repository.load();
-        findTodo(data, id);
-        return save(new TodoData(data.areas(), data.todos().stream()
-                .map(t -> t.id().equals(id) ? t.withTitleAndDueAt(title, request.dueAt()) : t).toList()));
+        synchronized (repository) {
+            String title = cleanTitle(request);
+            TodoData data = repository.load();
+            findTodo(data, id);
+            return save(new TodoData(data.areas(), data.todos().stream()
+                    .map(t -> t.id().equals(id) ? t.withTitleAndDueAt(title, request.dueAt()) : t).toList()));
+        }
     }
 
     // MARK: - Erinnerungen
 
     public Board addReminder(String id, ReminderRequest request) {
-        if (request == null || request.at() == null) {
-            throw badRequest("Wann soll erinnert werden?");
+        synchronized (repository) {
+            if (request == null || request.at() == null) {
+                throw badRequest("Wann soll erinnert werden?");
+            }
+            if (request.at().isBefore(Instant.now(clock))) {
+                throw badRequest("Der Zeitpunkt liegt in der Vergangenheit.");
+            }
+            TodoData data = repository.load();
+            Todo todo = findTodo(data, id);
+            List<Reminder> reminders = new ArrayList<>(todo.reminders());
+            reminders.add(new Reminder(TodoRepository.newId(), request.at(), null));
+            return save(replace(data, todo.withReminders(reminders)));
         }
-        if (request.at().isBefore(Instant.now(clock))) {
-            throw badRequest("Der Zeitpunkt liegt in der Vergangenheit.");
-        }
-        TodoData data = repository.load();
-        Todo todo = findTodo(data, id);
-        List<Reminder> reminders = new ArrayList<>(todo.reminders());
-        reminders.add(new Reminder(TodoRepository.newId(), request.at(), null));
-        return save(replace(data, todo.withReminders(reminders)));
     }
 
     public Board deleteReminder(String id, String reminderId) {
-        TodoData data = repository.load();
-        Todo todo = findTodo(data, id);
-        List<Reminder> reminders = todo.reminders().stream()
-                .filter(r -> !r.id().equals(reminderId)).toList();
-        if (reminders.size() == todo.reminders().size()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Erinnerung nicht gefunden.");
+        synchronized (repository) {
+            TodoData data = repository.load();
+            Todo todo = findTodo(data, id);
+            List<Reminder> reminders = todo.reminders().stream()
+                    .filter(r -> !r.id().equals(reminderId)).toList();
+            if (reminders.size() == todo.reminders().size()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Erinnerung nicht gefunden.");
+            }
+            return save(replace(data, todo.withReminders(reminders)));
         }
-        return save(replace(data, todo.withReminders(reminders)));
     }
 
     private static TodoData replace(TodoData data, Todo updated) {
@@ -254,27 +304,33 @@ public class TodoService {
 
     /** Abhaken. Noch einmal abhaken aendert nichts - der Zeitpunkt bleibt der erste. */
     public Board done(String id) {
-        TodoData data = repository.load();
-        findTodo(data, id);
-        Instant now = Instant.now(clock);
-        return save(new TodoData(data.areas(), data.todos().stream()
-                .map(t -> t.id().equals(id) && !t.isDone() ? t.withDoneAt(now) : t).toList()));
+        synchronized (repository) {
+            TodoData data = repository.load();
+            findTodo(data, id);
+            Instant now = Instant.now(clock);
+            return save(new TodoData(data.areas(), data.todos().stream()
+                    .map(t -> t.id().equals(id) && !t.isDone() ? t.withDoneAt(now) : t).toList()));
+        }
     }
 
     /** Haken zurueck - auch bei einer, die schon aus dem Brett gefallen war. */
     public Board reopen(String id) {
-        TodoData data = repository.load();
-        findTodo(data, id);
-        return save(new TodoData(data.areas(), data.todos().stream()
-                .map(t -> t.id().equals(id) ? t.withDoneAt(null) : t).toList()));
+        synchronized (repository) {
+            TodoData data = repository.load();
+            findTodo(data, id);
+            return save(new TodoData(data.areas(), data.todos().stream()
+                    .map(t -> t.id().equals(id) ? t.withDoneAt(null) : t).toList()));
+        }
     }
 
     /** Wirklich loeschen, samt Unteraufgaben. Der Ausnahmefall, nicht der Weg. */
     public Board deleteTodo(String id) {
-        TodoData data = repository.load();
-        findTodo(data, id);
-        return save(new TodoData(data.areas(), data.todos().stream()
-                .filter(t -> !t.id().equals(id) && !id.equals(t.parentId())).toList()));
+        synchronized (repository) {
+            TodoData data = repository.load();
+            findTodo(data, id);
+            return save(new TodoData(data.areas(), data.todos().stream()
+                    .filter(t -> !t.id().equals(id) && !id.equals(t.parentId())).toList()));
+        }
     }
 
     // MARK: - Kleinkram

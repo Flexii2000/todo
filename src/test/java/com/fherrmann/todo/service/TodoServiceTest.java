@@ -84,6 +84,47 @@ class TodoServiceTest {
         assertEquals(1, stored.get().todos().size(), "geloescht wird nichts");
     }
 
+    private static final String CLIENT_A = "5c1e0a4e-7b1f-4d55-9a37-0e8f3f2c1a11";
+    private static final String CLIENT_B = "9d2f1b5f-8c20-4e66-8b48-1f903f3d2b22";
+
+    /** Fokus vergibt die Kennung selbst (offline angelegt): sie gilt, und ein zweites Senden legt nichts doppelt an. */
+    @Test
+    void theAppMayChooseTheIdAndASecondSendAddsNothing() {
+        TodoRequest request = new TodoRequest("privat", null, "Rasen mähen", null, null,
+                new TodoRequest.Notification("Neu", "Rasen"), CLIENT_A);
+        Board board = service.createTodo(request);
+        assertEquals(CLIENT_A, firstTodoId(board, 0));
+
+        board = service.createTodo(request);
+        assertEquals(1, board.areas().get(0).todos().size());
+        assertEquals(1, stored.get().todos().size());
+        verify(notifier).announce(anyString(), anyString(), any());
+    }
+
+    /** Eine Unteraufgabe unter einer Aufgabe, die die App angelegt hat - beide offline, nacheinander nachgesendet. */
+    @Test
+    void aSubtaskUnderATaskWithTheAppsId() {
+        service.createTodo(new TodoRequest("uni", null, "Hausarbeit", null, null, null, CLIENT_A));
+        Board board = service.createTodo(new TodoRequest("uni", CLIENT_A, "Gliederung", null, null, null, CLIENT_B));
+        Board.TodoView top = board.areas().get(1).todos().get(0);
+        assertEquals(CLIENT_A, top.id());
+        assertEquals(CLIENT_B, top.children().get(0).id());
+        board = service.done(CLIENT_B);
+        assertNotNull(board.areas().get(1).todos().get(0).children().get(0).doneAt());
+    }
+
+    /** Nur kleingeschriebene UUIDs - die App fragt spaeter mit genau dieser Zeichenkette. */
+    @Test
+    void theAppsIdMustBeALowercaseUuid() {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service.createTodo(new TodoRequest("privat", null, "A", null, null, null, "abc")));
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+        assertThrows(ResponseStatusException.class,
+                () -> service.createTodo(new TodoRequest("privat", null, "A", null, null, null, CLIENT_A.toUpperCase())));
+        Board board = service.createTodo(new TodoRequest("privat", null, "Ohne", null, null, null, "  "));
+        assertEquals(36, firstTodoId(board, 0).length(), "leer heisst: der Dienst vergibt sie");
+    }
+
     private TodoRepository mockRepo() {
         TodoRepository repository = mock(TodoRepository.class);
         when(repository.load()).thenAnswer(inv -> stored.get());

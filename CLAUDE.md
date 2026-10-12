@@ -26,6 +26,10 @@ Tab in der iOS-App Fokus (`~/Server-Projects/cockpit-ios`).
   stehen, auch ohne `link` im Rumpf: Fokus auf dem Handy und offene
   Browser-Tabs kennen das Feld nicht. Ein PUT, das ihn übernimmt, löschte bei
   jedem Speichern Links.
+- **Die App darf die Kennung einer neuen Aufgabe selbst vergeben** (`id`,
+  kleingeschriebene UUID): Fokus zeigt offline Angelegtes sofort und schickt es
+  später. Dieselbe Kennung zweimal legt nichts doppelt an. Schreiber teilen sich
+  eine Sperre (`synchronized (repository)`) - auch der `ReminderScheduler`.
 - **Erinnerungen schickt der Dienst**, nicht die App (`ReminderScheduler`,
   jede Minute). Eine erledigte Aufgabe erinnert an nichts mehr; eine um mehr
   als eine Stunde verpasste Erinnerung ist verpasst. Beides wird als

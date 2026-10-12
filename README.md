@@ -59,7 +59,7 @@ Antwort ist das ganze Brett** (`Board`).
 | POST | `/api/areas` | `{name}` → 201 |
 | PUT | `/api/areas/{id}` | `{name}` |
 | DELETE | `/api/areas/{id}` | samt Aufgaben |
-| POST | `/api/todos` | `{areaId, parentId?, title, link?, notification?}` → 201; `notification` = `{title, body}` |
+| POST | `/api/todos` | `{areaId, parentId?, title, link?, notification?, id?}` → 201; `notification` = `{title, body}`; `id` siehe unten |
 | PUT | `/api/todos/{id}` | `{title, dueAt?}` — fehlt `dueAt`, gibt es keine Fälligkeit mehr; der Link bleibt, wie er ist |
 | POST | `/api/todos/{id}/reminders` | `{at}` (Zeitpunkt mit Zone, nur Zukunft) → 201 |
 | DELETE | `/api/todos/{id}/reminders/{rid}` | Erinnerung entfernen |
@@ -88,6 +88,20 @@ ein 400:
 Die Schema-Prüfung ist nicht Kosmetik — die Weboberfläche setzt den Link als
 `href`, ein `javascript:` wäre dort ausführbar. `link` steht in jeder
 `TodoView`, auch als `null`.
+
+**Kennung vom Client** (seit 2026-10-12): Fokus legt Aufgaben auch ohne Netz an,
+zeigt sie sofort und schickt sie später. Dafür vergibt die App die Kennung selbst
+(`id`, kleingeschriebene UUID — sonst 400 `Die Kennung ist keine UUID.`), damit
+Haken, Ändern und Unteraufgaben vor dem Senden schon ein Ziel haben. **Ein zweites
+Anlegen mit derselben Kennung legt nichts an** und schickt keine zweite
+Benachrichtigung — der Postausgang darf nachsenden, wenn eine Antwort verloren
+ging. Ohne `id` vergibt der Dienst eine, wie bisher (Weboberfläche, Kalorienzähler).
+`DELETE` auf eine schon gelöschte Aufgabe ist ein 404; die App nimmt das als erledigt.
+
+**Eine Sperre für alle Schreiber:** jedes Ändern lädt, ändert und speichert unter
+derselben Sperre wie der `ReminderScheduler`. Der verschickt seine Pushes außerhalb
+und vermerkt sie danach mit frisch gelesenem Stand — vorher schrieb er nach dem
+Verschicken seinen alten Stand zurück, und was in der Zwischenzeit dazukam, war weg.
 
 ## Daten
 
