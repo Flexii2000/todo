@@ -120,8 +120,8 @@ Subdomain. Die Karte auf der Landing Page steht im privaten Block.
 # einmalig
 ssh HeimServerRemote 'git clone git@github.com:Flexii2000/todo.git ~/services/todo'
 ssh -t HeimServerRemote '~/services/todo/deploy/setup-todo.sh'
-# später
-ssh -t HeimServerRemote '~/services/todo/deploy/update-todo.sh'
+# später (ohne Passwort, auch für Agenten: update-service.sh, SERVER-CONTEXT.md)
+ssh HeimServerLocal '~/services/todo/deploy/update-todo.sh'
 ```
 
 ## Bauen
